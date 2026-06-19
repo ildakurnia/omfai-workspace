@@ -1,0 +1,16 @@
+# Editor files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+
+# Local environments
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
