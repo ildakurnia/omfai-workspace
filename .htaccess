@@ -7,14 +7,22 @@
     RewriteCond %{REQUEST_URI} ^/api$
     RewriteRule ^(.*)$ backend/public/index.php [L,QSA]
 
-    # 2. Jika file statis yang dicari ada di dalam folder frontend/out, sajikan file tersebut
+    # 2. Jika file statis fisik (CSS, JS, images) ada di dalam folder frontend/out, sajikan langsung
     RewriteCond %{DOCUMENT_ROOT}/frontend/out/$1 -f
     RewriteRule ^(.*)$ frontend/out/$1 [L]
 
-    # 3. Semua request routing halaman (bukan file fisik) diarahkan ke index.html Next.js SPA
+    # 3. Next.js Static Pages Routing
+    # A. Routing untuk domain utama (/) -> index.html
+    RewriteRule ^$ frontend/out/index.html [L]
+
+    # B. Routing untuk halaman tunggal (misal /login atau /dashboard) -> page-name.html
+    RewriteCond %{DOCUMENT_ROOT}/frontend/out/$1.html -f
+    RewriteRule ^([^/]+)/?$ frontend/out/$1.html [L]
+
+    # 4. Fallback jika rute halaman tidak ditemukan ke halaman 404 Next.js
     RewriteCond %{REQUEST_URI} !^/backend
     RewriteCond %{REQUEST_URI} !^/frontend
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^(.*)$ frontend/out/index.html [L]
+    RewriteRule ^(.*)$ frontend/out/404.html [L]
 </IfModule>
