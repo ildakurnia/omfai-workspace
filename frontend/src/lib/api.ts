@@ -1,10 +1,21 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 
+// Deteksi URL API secara dinamis berdasarkan lingkungan (lokal vs produksi)
+let apiBaseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+
+if (typeof window !== "undefined") {
+  const hostname = window.location.hostname;
+  if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+    // Jika diakses online, arahkan ke domain/subdomain aktif + /api
+    apiBaseURL = window.location.origin + "/api";
+  }
+}
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api",
+  baseURL: apiBaseURL,
   headers: {
-    "Content-Type": "application/json",
+    "Content-Type": "application/json", 
     Accept: "application/json",
   },
 });
