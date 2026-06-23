@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import ReviewModal from "@/components/review-modal";
+import ConfirmModal from "@/components/confirm-modal";
 import api from "@/lib/api";
 import { formatDuration, formatActiveDuration, getDateRange, toLocalDateString, formatIndonesianDate } from "@/lib/utils";
 
@@ -80,6 +81,10 @@ export default function ActivitiesPage() {
   const [reviewActivity, setReviewActivity] = useState<any>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
 
+  // States untuk konfirmasi hapus kustom
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [activityIdToDelete, setActivityIdToDelete] = useState<number | null>(null);
+
   // States untuk dropdown aksi per baris
   const [activeDropdownId, setActiveDropdownId] = useState<number | null>(null);
 
@@ -116,6 +121,18 @@ export default function ActivitiesPage() {
       } catch (e) {}
     }
   }, []);
+
+  // Lock background scroll when local modals are open
+  useEffect(() => {
+    if (isModalOpen || holdActivity) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isModalOpen, holdActivity]);
 
   const roles = user?.roles || [];
   const isAdmin = roles.includes("Admin");
@@ -223,6 +240,8 @@ export default function ActivitiesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activities"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      setIsDeleteModalOpen(false);
+      setActivityIdToDelete(null);
     },
   });
 
@@ -317,8 +336,13 @@ export default function ActivitiesPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm("Apakah Anda yakin ingin menghapus catatan aktivitas ini?")) {
-      deleteMutation.mutate(id);
+    setActivityIdToDelete(id);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (activityIdToDelete !== null) {
+      deleteMutation.mutate(activityIdToDelete);
     }
   };
 
@@ -336,13 +360,13 @@ export default function ActivitiesPage() {
     <DashboardLayout>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold text-zinc-950">Kelola & Histori Aktivitas</h2>
-          <p className="text-xs text-zinc-400 font-medium mt-1">Daftar lengkap catatan aktivitas pekerjaan harian karyawan.</p>
+          <h2 className="text-2xl font-bold text-zinc-950">Kelola & Histori Aktivitas</h2>
+          <p className="text-sm text-zinc-505 font-medium mt-1.5">Daftar lengkap catatan aktivitas pekerjaan harian karyawan.</p>
         </div>
         {isEmployee && (
           <button
             onClick={openAddModal}
-            className="flex items-center gap-2 bg-[#FF8200] hover:bg-[#e07200] text-white text-sm font-bold px-4 py-2.5 rounded-lg shadow-sm transition-all cursor-pointer"
+            className="flex items-center gap-2 bg-[#FF8200] hover:bg-[#e07200] text-sm font-bold px-4 py-2.5 rounded-lg shadow-sm transition-all cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             Catat Aktivitas Baru
@@ -354,17 +378,17 @@ export default function ActivitiesPage() {
       <div className="bg-white p-5 rounded-2xl border border-zinc-150 shadow-sm space-y-4">
         <div className="flex items-center gap-2 text-zinc-800 border-b border-zinc-100 pb-3">
           <Filter className="h-4 w-4 text-zinc-400" />
-          <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Penyaringan Data</span>
+          <span className="text-sm font-bold uppercase tracking-wider text-zinc-500">Penyaringan Data</span>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {/* Filter Periode */}
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Periode Waktu</label>
+            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Periode Waktu</label>
             <select
               value={filterPeriod}
               onChange={(e) => handlePeriodChange(e.target.value)}
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
+              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
             >
               <option value="all">Semua Waktu</option>
               <option value="today">Hari Ini (Harian)</option>
@@ -376,14 +400,14 @@ export default function ActivitiesPage() {
 
           {/* Filter Kategori */}
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Kategori</label>
+            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Kategori</label>
             <select
               value={filterCategory}
               onChange={(e) => {
                 setFilterCategory(e.target.value);
                 setPage(1);
               }}
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
+              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
             >
               <option value="">Semua Kategori</option>
               {categoriesData?.map((cat: any) => (
@@ -396,14 +420,14 @@ export default function ActivitiesPage() {
 
           {/* Filter Status */}
           <div>
-            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Status</label>
+            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Status</label>
             <select
               value={filterStatus}
               onChange={(e) => {
                 setFilterStatus(e.target.value);
                 setPage(1);
               }}
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
+              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
             >
               <option value="">Semua Status</option>
               <option value="in_progress">In Progress</option>
@@ -415,14 +439,14 @@ export default function ActivitiesPage() {
           {/* Filter Karyawan (Admin/Owner Only) */}
           {(isAdmin || isOwner) ? (
             <div>
-              <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Karyawan</label>
+              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Karyawan</label>
               <select
                 value={filterUser}
                 onChange={(e) => {
                   setFilterUser(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
               >
                 <option value="">Semua Karyawan</option>
                 {employeesData?.filter((e: any) => e.roles?.[0]?.name === "Employee").map((emp: any) => (
@@ -440,7 +464,7 @@ export default function ActivitiesPage() {
           <div className="flex items-end">
             <button
               onClick={handleResetFilters}
-              className="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold py-2.5 px-4 rounded-lg transition-all cursor-pointer"
+              className="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm font-bold py-2.5 px-4 rounded-lg transition-all cursor-pointer"
             >
               Reset Filter
             </button>
@@ -451,7 +475,7 @@ export default function ActivitiesPage() {
         {filterPeriod === "custom" && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 max-w-md pt-3 border-t border-zinc-100 animate-fadeIn">
             <div>
-              <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Mulai Tanggal</label>
+              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Mulai Tanggal</label>
               <input
                 type="date"
                 value={filterStartDate}
@@ -459,11 +483,11 @@ export default function ActivitiesPage() {
                   setFilterStartDate(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-700 focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Sampai Tanggal</label>
+              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Sampai Tanggal</label>
               <input
                 type="date"
                 value={filterEndDate}
@@ -471,7 +495,7 @@ export default function ActivitiesPage() {
                   setFilterEndDate(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-700 focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
               />
             </div>
           </div>
@@ -493,9 +517,9 @@ export default function ActivitiesPage() {
               <span className="text-sm">Tidak ada catatan aktivitas yang ditemukan.</span>
             </div>
           ) : (
-            <table className="min-w-[900px] md:min-w-full divide-y divide-zinc-150 text-left text-xs">
+            <table className="min-w-[900px] md:min-w-full divide-y divide-zinc-150 text-left text-sm">
               <thead className="bg-zinc-50/70">
-                <tr className="text-zinc-400 uppercase font-bold tracking-wider">
+                <tr className="text-zinc-400 uppercase font-bold tracking-wider text-xs">
                   {(isAdmin || isOwner) ? (
                     <th className="py-5 pl-6 md:pl-8 pr-4">Karyawan</th>
                   ) : (
@@ -524,7 +548,7 @@ export default function ActivitiesPage() {
                       ) : (
                         <td className="py-5 pl-6 md:pl-8 pr-4">
                           <div>{formatIndonesianDate(act.created_at)}</div>
-                          <div className="text-[10px] text-zinc-400 font-medium">
+                          <div className="text-xs text-zinc-400 font-medium mt-0.5">
                             {new Date(act.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} WIB
                           </div>
                         </td>
@@ -532,32 +556,32 @@ export default function ActivitiesPage() {
                       {(isAdmin || isOwner) && (
                         <td className="py-5 px-4">
                           <div>{formatIndonesianDate(act.created_at)}</div>
-                          <div className="text-[10px] text-zinc-400 font-medium">
+                          <div className="text-xs text-zinc-400 font-medium mt-0.5">
                             {new Date(act.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} WIB
                           </div>
                         </td>
                       )}
                        <td className="py-5 px-4">
-                         <span className="px-2.5 py-0.5 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-600 font-bold text-[9px] uppercase tracking-wide whitespace-nowrap">
+                         <span className="px-2.5 py-0.5 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-650 font-bold text-[10px] uppercase tracking-wide whitespace-nowrap">
                            {act.category?.name}
                          </span>
                        </td>
                       <td className="py-5 px-4 max-w-md break-words text-zinc-900">
                         <div className="font-semibold">{act.activity}</div>
                         {act.progress_note && (
-                          <div className="text-[10px] text-zinc-500 font-medium italic mt-1.5 bg-zinc-50 border border-zinc-100/60 px-2 py-1 rounded-md max-w-md break-words">
+                          <div className="text-xs text-zinc-500 font-semibold italic mt-1.5 bg-zinc-50 border border-zinc-100/60 px-2.5 py-1 rounded-lg max-w-md break-words">
                             Progress: {act.progress_note}
                           </div>
                         )}
                         {act.owner_feedback && (
-                          <div className="text-[10px] text-zinc-650 font-medium mt-1.5 bg-orange-50/40 border border-orange-100/60 p-2 rounded-xl max-w-md break-words">
+                          <div className="text-xs text-orange-705 font-semibold mt-1.5 bg-orange-50/30 border border-orange-100/60 p-2 rounded-xl max-w-md break-words">
                             <strong className="text-[#e07200]">Catatan Owner:</strong> {act.owner_feedback}
                           </div>
                         )}
                       </td>
                       <td className="py-5 px-4">
                         <span
-                          className={`text-[9px] font-bold px-2.5 py-1 rounded uppercase ${
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded uppercase ${
                             act.status === "in_progress"
                               ? "bg-blue-50 text-blue-600 border border-blue-100"
                               : act.status === "on_hold"
@@ -567,17 +591,17 @@ export default function ActivitiesPage() {
                         >
                           {act.status.replace("_", " ")}
                         </span>
-                        <div className="text-[10px] text-zinc-500 font-semibold mt-1 flex items-center gap-1">
-                          <Clock className="h-3 w-3 text-zinc-400 shrink-0" />
+                        <div className="text-xs text-zinc-500 font-semibold mt-1.5 flex items-center gap-1">
+                          <Clock className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
                           <span>{formatActiveDuration(act.created_at, act.completed_at, act.status, act.logs, holidaySet)}</span>
                           {act.status === "in_progress" && (
-                            <span className="text-zinc-400 font-medium text-[9px]">(aktif)</span>
+                            <span className="text-zinc-400 font-medium text-[9.5px]">(aktif)</span>
                           )}
                         </div>
                       </td>
                       <td className="py-5 px-4 max-w-xs break-words">
                         {act.status === "on_hold" && act.hold_reason && (
-                          <div className="text-orange-700 font-bold bg-orange-50/50 border border-orange-100 p-2 rounded-lg text-[11px] mb-1">
+                          <div className="text-orange-700 font-bold bg-orange-50/50 border border-orange-100 p-2 rounded-lg text-xs mb-1">
                             Kendala: {act.hold_reason}
                           </div>
                         )}
@@ -585,7 +609,7 @@ export default function ActivitiesPage() {
                           <a
                             href={act.reference_link}
                             target="_blank"
-                            className="text-[#FF8200] hover:underline font-bold inline-flex items-center gap-1 text-[11px] mt-1"
+                            className="text-[#FF8200] hover:underline font-bold inline-flex items-center gap-1 text-xs mt-1"
                           >
                             Buka Bukti <ExternalLink className="h-3 w-3" />
                           </a>
@@ -599,7 +623,7 @@ export default function ActivitiesPage() {
                               setReviewActivity(act);
                               setIsReviewOpen(true);
                             }}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-orange-200 bg-orange-50/40 hover:bg-orange-50 text-[10px] font-bold text-[#FF8200] transition-all cursor-pointer shadow-sm hover:border-orange-300"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-orange-200 bg-orange-50/40 hover:bg-orange-50 text-xs font-bold text-[#FF8200] transition-all cursor-pointer shadow-sm hover:border-orange-300"
                           >
                             <MessageSquarePlus className="h-3 w-3 text-[#FF8200]" />
                             {act.owner_feedback ? "Edit Review" : "Review"}
@@ -776,7 +800,7 @@ export default function ActivitiesPage() {
 
       {/* 3. Modal Form CRUD (Dialog Glassmorphism) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 backdrop-blur-sm px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm px-4 animate-fade-in">
           <div className="bg-white rounded-2xl border border-zinc-100 shadow-2xl w-full max-w-md p-6 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-3 mb-5 shrink-0">
               <h3 className="text-sm font-bold text-zinc-950">
@@ -934,7 +958,7 @@ export default function ActivitiesPage() {
 
       {/* 4. Modal Input Kendala (Hold Reason) Custom */}
       {holdActivity && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 backdrop-blur-sm px-4 animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm px-4 animate-fade-in">
           <div className="bg-white rounded-2xl border border-zinc-100 shadow-2xl w-full max-w-sm p-6 overflow-hidden">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-3 mb-5">
               <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
@@ -1015,6 +1039,22 @@ export default function ActivitiesPage() {
           queryClient.invalidateQueries({ queryKey: ["activities"] });
           queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
         }}
+      />
+
+      {/* 6. Modal Konfirmasi Hapus Kustom */}
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setActivityIdToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Hapus Catatan Aktivitas"
+        message="Apakah Anda yakin ingin menghapus catatan aktivitas ini? Data yang sudah terhapus tidak dapat dikembalikan."
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="danger"
+        isLoading={deleteMutation.isPending}
       />
     </DashboardLayout>
   );

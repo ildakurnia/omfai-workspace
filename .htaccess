@@ -1,0 +1,20 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 1. Arahkan request API ke Laravel backend/public/index.php
+    RewriteCond %{REQUEST_URI} ^/api [NC]
+    RewriteRule ^api/(.*)$ backend/public/index.php [L,QSA]
+    RewriteCond %{REQUEST_URI} ^/api$
+    RewriteRule ^(.*)$ backend/public/index.php [L,QSA]
+
+    # 2. Jika file statis yang dicari ada di dalam folder frontend/out, sajikan file tersebut
+    RewriteCond %{DOCUMENT_ROOT}/frontend/out/$1 -f
+    RewriteRule ^(.*)$ frontend/out/$1 [L]
+
+    # 3. Semua request routing halaman (bukan file fisik) diarahkan ke index.html Next.js SPA
+    RewriteCond %{REQUEST_URI} !^/backend
+    RewriteCond %{REQUEST_URI} !^/frontend
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ frontend/out/index.html [L]
+</IfModule>

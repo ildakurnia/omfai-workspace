@@ -105,13 +105,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       name: "Kelola Kategori",
       href: "/categories",
       icon: FolderTree,
-      show: false, // Hidden for presentation (originally: isAdmin)
+      show: isAdmin, // Hidden for presentation (originally: isAdmin)
     },
     {
       name: "Kelola Karyawan",
       href: "/users",
       icon: Users,
-      show: false, // Hidden for presentation (originally: isAdmin)
+      show: isAdmin, // Hanya Admin
     },
     {
       name: "Laporan Aktivitas",
@@ -123,7 +123,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       name: "Kalender Libur",
       href: "/holidays",
       icon: Calendar,
-      show: false, // Hidden for presentation (originally: isAdmin)
+      show: isAdmin, // Hidden for presentation (originally: isAdmin)
     },
   ];
 

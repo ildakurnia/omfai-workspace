@@ -23,6 +23,17 @@ export default function ReviewModal({ isOpen, onClose, activity, onSuccess }: Re
     }
   }, [activity, isOpen]);
 
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isOpen]);
+
   if (!isOpen || !activity) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,7 +58,7 @@ export default function ReviewModal({ isOpen, onClose, activity, onSuccess }: Re
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/45 backdrop-blur-sm p-4 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm p-4 animate-fade-in">
       {/* Backdrop Close Click */}
       <div className="absolute inset-0" onClick={onClose} />
 
@@ -60,8 +71,8 @@ export default function ReviewModal({ isOpen, onClose, activity, onSuccess }: Re
               <MessageSquarePlus className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-zinc-950">Catatan Evaluasi Owner</h3>
-              <p className="text-[10.5px] text-zinc-400 font-semibold mt-0.5">Berikan arahan/review pada aktivitas karyawan</p>
+              <h3 className="text-base font-bold text-zinc-950">Catatan Evaluasi Owner</h3>
+              <p className="text-xs text-zinc-400 font-semibold mt-0.5">Berikan arahan/review pada aktivitas karyawan</p>
             </div>
           </div>
           <button
@@ -81,14 +92,14 @@ export default function ReviewModal({ isOpen, onClose, activity, onSuccess }: Re
           )}
 
           {/* Activity Info Summary */}
-          <div className="p-3.5 bg-zinc-50 border border-zinc-100 rounded-xl space-y-1">
-            <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider block">Aktivitas Karyawan ({activity.employeeName || activity.user?.name})</span>
-            <p className="text-xs text-zinc-800 font-semibold truncate">{activity.activity}</p>
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-[9.5px] bg-zinc-200/60 text-zinc-600 px-2 py-0.5 rounded font-medium">
+          <div className="p-3.5 bg-zinc-50 border border-zinc-100 rounded-xl space-y-1.5">
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Aktivitas Karyawan ({activity.employeeName || activity.user?.name})</span>
+            <p className="text-sm text-zinc-800 font-bold break-words whitespace-pre-wrap">{activity.activity}</p>
+            <div className="flex items-center gap-2.5 mt-2">
+              <span className="text-[10px] bg-zinc-200/60 text-zinc-600 px-2 py-0.5 rounded font-bold uppercase tracking-wide">
                 {activity.categoryName || activity.category?.name}
               </span>
-              <span className="text-[9px] text-zinc-400 uppercase font-bold">
+              <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider">
                 Status: {activity.status.replace("_", " ")}
               </span>
             </div>
@@ -96,7 +107,7 @@ export default function ReviewModal({ isOpen, onClose, activity, onSuccess }: Re
 
           {/* Feedback Textarea */}
           <div className="space-y-1.5">
-            <label htmlFor="owner_feedback" className="block text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+            <label htmlFor="owner_feedback" className="block text-xs font-bold uppercase tracking-wider text-zinc-400">
               Ulasan / Catatan Umpan Balik
             </label>
             <textarea
@@ -104,7 +115,7 @@ export default function ReviewModal({ isOpen, onClose, activity, onSuccess }: Re
               rows={4}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              className="block w-full rounded-xl border border-zinc-200 p-3 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent transition-all resize-none"
+              className="block w-full rounded-xl border border-zinc-200 p-3 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent transition-all resize-none"
               placeholder="Tulis instruksi pengerjaan, solusi kendala, atau ulasan hasil di sini..."
             />
           </div>
@@ -115,14 +126,14 @@ export default function ReviewModal({ isOpen, onClose, activity, onSuccess }: Re
               type="button"
               onClick={onClose}
               disabled={isLoading}
-              className="px-4 py-2 text-xs font-bold text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-all cursor-pointer disabled:opacity-50"
+              className="px-4 py-2.5 text-sm font-bold text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-all cursor-pointer disabled:opacity-50"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#FF8200] hover:bg-[#e07200] rounded-lg shadow-sm shadow-orange-200 transition-all cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-bold text-white bg-[#FF8200] hover:bg-[#e07200] rounded-lg shadow-sm shadow-orange-200 transition-all cursor-pointer disabled:opacity-50"
             >
               {isLoading ? (
                 <>

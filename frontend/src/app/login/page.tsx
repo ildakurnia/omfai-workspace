@@ -64,11 +64,11 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 min-h-screen w-full bg-white font-sans overflow-hidden">
+    <div suppressHydrationWarning className="grid grid-cols-1 md:grid-cols-2 h-screen w-full bg-white font-sans md:overflow-hidden overflow-y-auto">
       
       {/* Sisi Kiri: Hero & Value Proposition */}
       <div 
-        className="hidden md:flex flex-col justify-center items-center p-12 lg:p-16 relative overflow-hidden"
+        className="hidden md:flex flex-col justify-center items-center py-6 md:py-8 lg:py-10 px-8 md:px-10 lg:px-14 relative overflow-hidden"
         style={{ 
           background: "linear-gradient(135deg, #FFF7ED 0%, #FEF3E2 100%)",
           borderRight: "1px solid #E5E7EB"
@@ -90,7 +90,7 @@ export default function LoginPage() {
         <div className="relative z-10 flex flex-col items-center max-w-sm w-full text-center">
           
           {/* Ilustrasi berbentuk Mockup Browser agar terlihat seperti dashboard nyata, bukan tempelan */}
-          <div className="bg-white rounded-xl shadow-[0_16px_36px_rgba(255,130,0,0.06)] border border-orange-100/30 overflow-hidden mb-10 max-w-[310px] w-full transform transition-all duration-500 hover:scale-[1.02] mx-auto">
+          <div className="bg-white rounded-xl shadow-[0_16px_36px_rgba(255,130,0,0.06)] border border-orange-100/30 overflow-hidden mb-5 max-w-[320px] w-full transform transition-all duration-500 hover:scale-[1.02] mx-auto">
             {/* Header Mockup Window */}
             <div className="bg-zinc-50 px-3.5 py-2 flex items-center gap-1.5 border-b border-zinc-100 select-none">
               <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F56]" />
@@ -107,29 +107,29 @@ export default function LoginPage() {
           </div>
           
           {/* Headline Lebih Kuat & Lebih Besar */}
-          <h2 className="text-3xl font-extrabold text-zinc-900 tracking-tight leading-tight mb-4">
-            Everything Your Team Needs,<br />One Workspace
+          <h2 className="text-2xl lg:text-3xl font-extrabold text-zinc-900 tracking-tight leading-tight mb-2.5">
+            One Workspace for<br />Your Daily Work
           </h2>
           
           {/* Deskripsi Menjelaskan Sistem */}
-          <p className="text-xs text-zinc-500 font-semibold leading-relaxed mb-8">
-            Monitor employee activities, manage attendance, and gain better visibility into team performance through a centralized workspace.
+          <p className="text-sm text-zinc-500 font-medium leading-relaxed mb-5 max-w-sm">
+            Manage activities, attendance, and work progress in one integrated platform.
           </p>
           
           {/* Feature List dengan Checklist Professional */}
           <div className="w-full flex flex-col items-center">
-            <div className="space-y-4 flex flex-col items-start">
-              <div className="flex items-center gap-2.5 text-xs font-bold text-zinc-700">
-                <span className="text-emerald-600 text-sm">✓</span>
-                <span>Daily Activity Reporting</span>
+            <div className="space-y-2.5 flex flex-col items-start">
+              <div className="flex items-center gap-2.5 text-sm font-bold text-zinc-700">
+                <span className="text-emerald-600 text-base">✓</span>
+                <span>Daily Activities</span>
               </div>
-              <div className="flex items-center gap-2.5 text-xs font-bold text-zinc-700">
-                <span className="text-emerald-600 text-sm">✓</span>
+              <div className="flex items-center gap-2.5 text-sm font-bold text-zinc-700">
+                <span className="text-emerald-600 text-base">✓</span>
                 <span>Attendance Management</span>
               </div>
-              <div className="flex items-center gap-2.5 text-xs font-bold text-zinc-700">
-                <span className="text-emerald-600 text-sm">✓</span>
-                <span>Performance Insights</span>
+              <div className="flex items-center gap-2.5 text-sm font-bold text-zinc-700">
+                <span className="text-emerald-600 text-base">✓</span>
+                <span>Work Progress Monitoring</span>
               </div>
             </div>
           </div>
@@ -138,25 +138,24 @@ export default function LoginPage() {
       </div>
 
       {/* Sisi Kanan: Form Login (Latar Belakang Putih Bersih #FFFFFF, Seimbang 50%) */}
-      <div className="flex flex-col justify-center items-center p-8 md:p-12 lg:p-16 bg-white w-full">
+      <div className="flex flex-col justify-center items-center py-6 md:py-8 lg:py-10 px-8 md:px-10 lg:px-14 bg-white w-full h-full">
         
-        {/* Container Form (Lebar dibatasi 380px agar terlihat Premium) */}
-        <div className="w-full max-w-[380px] space-y-8">
+        {/* Container Form (Lebar dibatasi 400px agar terlihat Premium) */}
+        <div className="w-full max-w-[400px] space-y-6">
           
           {/* Header Branding (Logo disatukan di atas judul form login) */}
           <div className="flex flex-col items-center text-center">
             <img 
               src="/omfai-logo-v2.png" 
-              className="h-20 w-20 rounded-full mb-5 shadow-sm shrink-0" 
-              style={{ imageRendering: "-webkit-optimize-contrast" }}
+              className="h-16 w-16 rounded-full mb-3 shadow-sm shrink-0" 
               alt="OMFAI Logo" 
             />
-            <h1 className="text-2xl font-extrabold text-zinc-900 tracking-tight mb-2">OMFAI Workspace</h1>
-            <p className="text-xs text-zinc-500 font-semibold leading-relaxed max-w-[280px]">Sistem Pemantauan Aktivitas Karyawan Terpusat</p>
+            <h1 className="text-2xl font-extrabold text-zinc-900 tracking-tight mb-1">OMFAI Workspace</h1>
+            <p className="text-xs text-zinc-400 font-semibold leading-relaxed max-w-[300px]">Sistem Pemantauan Aktivitas Karyawan Terpusat</p>
           </div>
 
           {/* Login Form */}
-          <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             {errorMessage && (
               <div className="rounded-xl bg-red-50 p-3.5 text-xs font-semibold text-red-600 border border-red-100 flex items-start gap-2 mb-2">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-500" />
@@ -173,7 +172,8 @@ export default function LoginPage() {
                 {...register("email")}
                 id="email"
                 type="email"
-                className={`block w-full rounded-xl border bg-zinc-50/50 px-3.5 py-3 text-xs text-zinc-900 placeholder-zinc-400 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-[#FF8200] ${
+                suppressHydrationWarning
+                className={`block w-full rounded-xl border bg-zinc-50/50 px-3.5 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-[#FF8200] ${
                   errors.email ? "border-red-300 focus:ring-red-500/20" : "border-zinc-200"
                 }`}
                 placeholder="nama@omfai.com"  
@@ -193,7 +193,8 @@ export default function LoginPage() {
                   {...register("password")}
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  className={`block w-full rounded-xl border bg-zinc-50/50 pl-3.5 pr-10 py-3 text-xs text-zinc-900 placeholder-zinc-400 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-[#FF8200] ${
+                  suppressHydrationWarning
+                  className={`block w-full rounded-xl border bg-zinc-50/50 pl-3.5 pr-10 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-[#FF8200] ${
                     errors.password ? "border-red-300 focus:ring-red-500/20" : "border-zinc-200"
                   }`}
                   placeholder="••••••••"
@@ -233,7 +234,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="flex w-full justify-center items-center rounded-xl bg-[#FF8200] hover:bg-[#e07200] active:scale-[0.98] px-4 py-3.5 text-xs font-bold text-white shadow-md shadow-orange-500/10 hover:shadow-lg hover:shadow-orange-500/20 transition-all cursor-pointer mt-3"
+              className="flex w-full justify-center items-center rounded-xl bg-[#FF8200] hover:bg-[#e07200] active:scale-[0.98] px-4 py-3 text-sm font-bold text-white shadow-md shadow-orange-500/10 hover:shadow-lg hover:shadow-orange-500/20 transition-all cursor-pointer mt-3"
             >
               {isLoading ? (
                 <>
@@ -247,7 +248,7 @@ export default function LoginPage() {
           </form>
 
           {/* Footer (Pindah lebih dekat ke form login di bawah) */}
-          <div className="text-center text-[9px] font-bold text-zinc-400 uppercase tracking-wider pt-6 border-t border-zinc-100/50">
+          <div suppressHydrationWarning className="text-center text-[9px] font-bold text-zinc-400 uppercase tracking-wider pt-4 border-t border-zinc-100/50">
             © {new Date().getFullYear()} OMFAI Workspace
           </div>
 

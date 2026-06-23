@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar as CalendarIcon, Plus, Trash2, RefreshCw, X, Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
@@ -13,6 +13,18 @@ export default function HolidaysPage() {
   const [holidayDate, setHolidayDate] = useState("");
   const [holidayName, setHolidayName] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Lock background scroll when modal is open
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isModalOpen]);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Query: Ambil Semua Hari Libur
@@ -200,7 +212,7 @@ export default function HolidaysPage() {
 
       {/* Modal Add Holiday Custom */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 backdrop-blur-sm px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm px-4">
           <div className="bg-white rounded-2xl border border-zinc-100 shadow-2xl w-full max-w-sm p-6 overflow-hidden">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-3 mb-5">
               <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-1.5">
