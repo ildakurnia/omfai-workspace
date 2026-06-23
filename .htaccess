@@ -7,19 +7,24 @@
     RewriteCond %{REQUEST_URI} ^/api$
     RewriteRule ^(.*)$ backend/public/index.php [L,QSA]
 
-    # 2. Jika file statis fisik (CSS, JS, images) ada di dalam folder frontend/out, sajikan langsung
+    # 2. Arahkan request asset upload Laravel (/storage) ke backend/public/storage/
+    RewriteCond %{REQUEST_URI} ^/storage [NC]
+    RewriteRule ^storage/(.*)$ backend/public/storage/$1 [L]
+
+    # 3. Jika file statis fisik (CSS, JS, images) ada di dalam folder frontend/out, sajikan langsung
     RewriteCond %{DOCUMENT_ROOT}/frontend/out/$1 -f
     RewriteRule ^(.*)$ frontend/out/$1 [L]
 
-    # 3. Next.js Static Pages Routing
+    # 4. Next.js Static Pages Routing
     # A. Routing untuk domain utama (/) -> index.html
     RewriteRule ^$ frontend/out/index.html [L]
 
     # B. Routing untuk halaman tunggal (misal /login atau /dashboard) -> page-name.html
-    RewriteCond %{DOCUMENT_ROOT}/frontend/out/$1.html -f
+    RewriteCond %{REQUEST_URI} !^/backend
+    RewriteCond %{REQUEST_URI} !^/frontend
     RewriteRule ^([^/]+)/?$ frontend/out/$1.html [L]
 
-    # 4. Fallback jika rute halaman tidak ditemukan ke halaman 404 Next.js
+    # 5. Fallback jika rute halaman tidak ditemukan ke halaman 404 Next.js
     RewriteCond %{REQUEST_URI} !^/backend
     RewriteCond %{REQUEST_URI} !^/frontend
     RewriteCond %{REQUEST_FILENAME} !-f
