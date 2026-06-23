@@ -7,9 +7,10 @@
     RewriteCond %{REQUEST_URI} ^/api$
     RewriteRule ^(.*)$ backend/public/index.php [L,QSA]
 
-    # 2. Arahkan request asset upload Laravel (/storage) ke backend/public/storage/
+    # 2. Arahkan request /storage langsung ke folder fisik asli (Bypass symlink)
+    # Ini sangat berguna jika Hostinger melarang pembuatan symlink / storage:link
     RewriteCond %{REQUEST_URI} ^/storage [NC]
-    RewriteRule ^storage/(.*)$ backend/public/storage/$1 [L]
+    RewriteRule ^storage/(.*)$ backend/storage/app/public/$1 [L]
 
     # 3. Jika file statis fisik (CSS, JS, images) ada di dalam folder frontend/out, sajikan langsung
     RewriteCond %{DOCUMENT_ROOT}/frontend/out/$1 -f
