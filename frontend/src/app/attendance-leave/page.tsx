@@ -725,6 +725,8 @@ export default function AttendanceLeavePage() {
         colorClass,
         attendanceId: attendance ? attendance.id : null,
         leaveId: leave ? leave.id : null,
+        isPast,
+        isToday,
       };
     });
   };
@@ -979,7 +981,7 @@ export default function AttendanceLeavePage() {
                       </thead>
                       <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
                         {employeeGrid.map((day: any) => {
-                          const showLeaveButton = day.checkIn === "-" && !["annual_leave", "sick_leave", "permission", "weekend", "holiday"].includes(day.status);
+                          const showLeaveButton = day.checkIn === "-" && !day.isPast && !["annual_leave", "sick_leave", "permission", "weekend", "holiday"].includes(day.status);
                           
                           return (
                             <tr key={day.dateString} className="hover:bg-zinc-50/30">
@@ -1580,6 +1582,7 @@ export default function AttendanceLeavePage() {
                       <input
                         {...register("start_date")}
                         type="date"
+                        min={new Date().toLocaleDateString("en-CA")}
                         className={`w-full rounded-lg border px-3 py-2 text-xs text-zinc-950 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent ${
                           errors.start_date ? "border-red-300" : "border-zinc-200"
                         }`}
@@ -1592,6 +1595,7 @@ export default function AttendanceLeavePage() {
                       <input
                         {...register("end_date")}
                         type="date"
+                        min={watch("start_date") || new Date().toLocaleDateString("en-CA")}
                         className={`w-full rounded-lg border px-3 py-2 text-xs text-zinc-950 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent ${
                           errors.end_date ? "border-red-300" : "border-zinc-200"
                         }`}
