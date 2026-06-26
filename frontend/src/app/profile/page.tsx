@@ -192,10 +192,16 @@ export default function ProfilePage() {
                 {roleName}
               </span>
 
-              {user.created_at && (
+              {user.employee?.employee_code && (
+                <div className="mt-3 text-[11px] font-mono font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-md border border-orange-100 select-all" title="Klik ganda untuk menyalin">
+                  ID: {user.employee.employee_code}
+                </div>
+              )}
+
+              {(user.employee?.joined_at || user.created_at) && (
                 <div className="flex items-center gap-1.5 mt-4 text-xs text-zinc-450 font-bold tracking-wide select-none">
                   <Calendar className="h-3.5 w-3.5 text-zinc-400" />
-                  <span>Bergabung {formatIndonesianDate(user.created_at, { month: "long", showYear: true })}</span>
+                  <span>Tanggal Masuk: {formatIndonesianDate(user.employee?.joined_at || user.created_at, { month: "long", showYear: true })}</span>
                 </div>
               )}
             </div>

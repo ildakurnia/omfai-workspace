@@ -7,6 +7,10 @@ use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\AttendanceApiController;
+use App\Http\Controllers\Api\LeaveApiController;
+use App\Http\Controllers\Api\LeaveApprovalController;
+use App\Http\Controllers\Api\GeofenceApiController;
 use Illuminate\Support\Facades\Route;
 
 // Public route
@@ -59,4 +63,28 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/reports', [ReportController::class, 'index']);
         Route::get('/reports/pdf', [ReportController::class, 'downloadPdf']);
     });
+
+    // Attendance & Geofencing Module
+    Route::post('/absen', [AttendanceApiController::class, 'tap']);
+    Route::get('/history-absen', [AttendanceApiController::class, 'history']);
+    Route::get('/geofences', [GeofenceApiController::class, 'index']);
+
+    // Leave & Permission Module
+    Route::post('/ajukan-cuti', [LeaveApiController::class, 'store']);
+    Route::get('/history-cuti', [LeaveApiController::class, 'history']);
+
+    // Leave Approvals & Geofence Settings (Owner & Admin only)
+    Route::middleware('role:Owner|Admin')->group(function () {
+        Route::get('/leave-requests', [LeaveApprovalController::class, 'index']);
+        Route::post('/leave-requests/{id}/approve', [LeaveApprovalController::class, 'approve']);
+        Route::post('/leave-requests/{id}/reject', [LeaveApprovalController::class, 'reject']);
+        Route::delete('/leave-requests/{id}', [LeaveApprovalController::class, 'destroy']);
+        Route::delete('/attendances/{id}', [AttendanceApiController::class, 'destroy'])->middleware('role:Admin');
+
+        // Geofence Management
+        Route::post('/geofences', [GeofenceApiController::class, 'store']);
+        Route::put('/geofences/{id}', [GeofenceApiController::class, 'update']);
+        Route::delete('/geofences/{id}', [GeofenceApiController::class, 'destroy']);
+    });
 });
+

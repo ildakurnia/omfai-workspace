@@ -257,3 +257,134 @@ export function getCategoryStyles(name: string): React.CSSProperties {
     borderColor: `hsl(${hue}, ${saturation}%, 88%)`
   };
 }
+
+export function playNotificationChime() {
+  if (typeof window === "undefined") return;
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.type = "sine";
+    // Play C5 (523.25 Hz) then E5 (659.25 Hz)
+    osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+    osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.12);
+    
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+    
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.35);
+  } catch (e) {
+    console.error("Failed to play notification chime:", e);
+  }
+}
+
+export function calculateOvertimeMinutes(
+  createdAtStr: string,
+  completedAtStr?: string | null,
+  logs?: Array<{ status: string; createdAt?: string; created_at?: string }> | null,
+  holidayDates?: Set<string>,
+  holdReason?: string | null
+): number {
+  if (!createdAtStr) return 0;
+
+  // Only calculate overtime if holdReason matches overtime tags
+  const isOvertimeTask = holdReason && (
+    holdReason === "Lembur" ||
+    holdReason.includes("Lembur") ||
+    holdReason.includes("Overtime")
+  );
+
+  if (!isOvertimeTask) return 0;
+
+  const isLogStartOutside = (logTime: Date) => {
+    const logDay = logTime.getDay();
+    const logHour = logTime.getHours();
+    const logDateStr = `${logTime.getFullYear()}-${String(logTime.getMonth() + 1).padStart(2, '0')}-${String(logTime.getDate()).padStart(2, '0')}`;
+    
+    if (logDay === 0) return true;
+    if (holidayDates && holidayDates.has(logDateStr)) return true;
+    if (logDay === 6) return logHour < 8 || logHour >= 12;
+    return logHour < 8 || logHour >= 17;
+  };
+
+  // Fallback if no logs
+  if (!logs || logs.length === 0) {
+    const start = new Date(createdAtStr);
+    if (!isLogStartOutside(start)) return 0;
+    
+    const end = completedAtStr ? new Date(completedAtStr) : new Date();
+    const total = Math.floor((end.getTime() - start.getTime()) / 60000);
+    const standard = calculateWorkingMinutes(start, end, holidayDates);
+    const overtime = total - standard;
+    return overtime > 0 ? overtime : 0;
+  }
+
+  // Sort logs
+  const sortedLogs = [...logs].sort((a, b) => {
+    const timeA = new Date(a.createdAt || a.created_at || 0).getTime();
+    const timeB = new Date(b.createdAt || b.created_at || 0).getTime();
+    return timeA - timeB;
+  });
+
+  let totalOvertimeMinutes = 0;
+
+  // Skip the first log segment (index 0) because it represents the initial start of the activity (which was not started via 'Mulai Lembur')
+  for (let i = 1; i < sortedLogs.length; i++) {
+    const log = sortedLogs[i];
+    const logStatus = log.status;
+    const startTime = new Date(log.createdAt || log.created_at || 0);
+
+    // Only count if log started outside operational hours
+    if (!isLogStartOutside(startTime)) continue;
+
+    let endTime: Date;
+    if (i < sortedLogs.length - 1) {
+      const nextLog = sortedLogs[i + 1];
+      endTime = new Date(nextLog.createdAt || nextLog.created_at || 0);
+    } else {
+      if (logStatus === "done") {
+        endTime = completedAtStr ? new Date(completedAtStr) : startTime;
+      } else if (logStatus === "on_hold") {
+        endTime = startTime;
+      } else {
+        endTime = new Date();
+      }
+    }
+
+    if (logStatus === "in_progress" && endTime.getTime() > startTime.getTime()) {
+      const totalInterval = Math.floor((endTime.getTime() - startTime.getTime()) / 60000);
+      const standardInterval = calculateWorkingMinutes(startTime, endTime, holidayDates);
+      let overtimeInterval = totalInterval - standardInterval;
+      
+      if (overtimeInterval > 0) {
+        totalOvertimeMinutes += overtimeInterval;
+      }
+    }
+  }
+
+  return totalOvertimeMinutes;
+}
+
+export function formatActiveOvertimeDuration(
+  createdAtStr: string,
+  completedAtStr?: string | null,
+  logs?: Array<{ status: string; createdAt?: string; created_at?: string }> | null,
+  holidayDates?: Set<string>,
+  holdReason?: string | null
+): string {
+  const overtimeMinutes = calculateOvertimeMinutes(createdAtStr, completedAtStr, logs, holidayDates, holdReason);
+  if (overtimeMinutes <= 0) return "";
+  
+  const hours = Math.floor(overtimeMinutes / 60);
+  const minutes = overtimeMinutes % 60;
+  
+  if (hours > 0) {
+    return `${hours} jam ${minutes} menit`;
+  }
+  return `${minutes} menit`;
+}
+

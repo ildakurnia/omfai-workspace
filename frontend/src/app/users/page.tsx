@@ -9,12 +9,32 @@ import { Users, Plus, X, Edit2, Trash2, Loader2, Key } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import api from "@/lib/api";
 import { formatIndonesianDate } from "@/lib/utils";
+import ConfirmModal from "@/components/confirm-modal";
 
 const userSchema = z.object({
   name: z.string().min(3, "Nama lengkap minimal harus 3 karakter"),
   email: z.string().min(1, "Email wajib diisi").email("Format email tidak valid"),
   password: z.string().optional(),
   role: z.enum(["Owner", "Admin", "Employee"]),
+  joined_at: z.string().optional(),
+  whatsapp_number: z.string().optional(),
+  leave_balance: z.any().optional(),
+}).refine((data) => {
+  if (data.role === "Employee") {
+    return !!data.joined_at && data.joined_at.trim() !== "";
+  }
+  return true;
+}, {
+  message: "Tanggal masuk wajib diisi untuk karyawan",
+  path: ["joined_at"],
+}).refine((data) => {
+  if (data.role === "Employee") {
+    return !!data.whatsapp_number && data.whatsapp_number.trim() !== "";
+  }
+  return true;
+}, {
+  message: "Nomor WhatsApp wajib diisi untuk karyawan",
+  path: ["whatsapp_number"],
 });
 
 type UserFormValues = z.infer<typeof userSchema>;
@@ -24,6 +44,39 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Custom Confirm Modal State
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "danger" | "warning" | "info";
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    variant: "danger",
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (
+    message: string,
+    onConfirm: () => void,
+    variant: "danger" | "warning" | "info" = "danger",
+    title: string = "Konfirmasi"
+  ) => {
+    setConfirmConfig({
+      isOpen: true,
+      title,
+      message,
+      variant,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
 
   // Lock background scroll when modal is open
   useEffect(() => {
@@ -42,10 +95,13 @@ export default function UsersPage() {
     handleSubmit,
     setValue,
     reset,
+    watch,
     formState: { errors },
   } = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
   });
+
+  const selectedRole = watch("role");
 
   // Query Daftar User beserta Role Spatie
   const { data: users, isLoading } = useQuery({
@@ -64,11 +120,18 @@ export default function UsersPage() {
         throw new Error("Password wajib diisi untuk karyawan baru.");
       }
 
+      const sanitizedData = {
+        ...data,
+        leave_balance: data.leave_balance === "" || data.leave_balance === undefined || data.leave_balance === null
+          ? undefined
+          : Number(data.leave_balance)
+      };
+
       if (selectedUser) {
-        const response = await api.put(`/users/${selectedUser.id}`, data);
+        const response = await api.put(`/users/${selectedUser.id}`, sanitizedData);
         return response.data;
       } else {
-        const response = await api.post("/users", data);
+        const response = await api.post("/users", sanitizedData);
         return response.data;
       }
     },
@@ -97,7 +160,15 @@ export default function UsersPage() {
 
   const openAddModal = () => {
     setSelectedUser(null);
-    reset({ name: "", email: "", password: "", role: "Employee" });
+    reset({ 
+      name: "", 
+      email: "", 
+      password: "", 
+      role: "Employee",
+      joined_at: "",
+      whatsapp_number: "",
+      leave_balance: 12
+    });
     setIsModalOpen(true);
     setErrorMsg(null);
   };
@@ -109,6 +180,9 @@ export default function UsersPage() {
       email: userData.email,
       password: "", // Kosongkan, hanya diisi jika ingin merubah password
       role: userData.roles?.[0]?.name || "Employee",
+      joined_at: userData.employee?.joined_at || "",
+      whatsapp_number: userData.employee?.whatsapp_number || "",
+      leave_balance: userData.employee?.leave_balance ?? 12,
     });
     setIsModalOpen(true);
     setErrorMsg(null);
@@ -125,9 +199,14 @@ export default function UsersPage() {
   };
 
   const handleDelete = (id: number) => {
-    if (confirm("Apakah Anda yakin ingin menghapus akun karyawan ini? Semua data aktivitas terkait juga akan terhapus.")) {
-      deleteMutation.mutate(id);
-    }
+    showConfirm(
+      "Apakah Anda yakin ingin menghapus akun karyawan ini? Semua data aktivitas terkait juga akan terhapus.",
+      () => {
+        deleteMutation.mutate(id);
+      },
+      "danger",
+      "Hapus Akun Karyawan"
+    );
   };
 
   return (
@@ -164,9 +243,12 @@ export default function UsersPage() {
               <thead className="bg-zinc-50/70">
                 <tr className="text-zinc-400 uppercase font-bold tracking-wider">
                   <th className="p-4">Nama Lengkap</th>
+                  <th className="p-4">Employee ID</th>
                   <th className="p-4">Alamat Email</th>
+                  <th className="p-4">WhatsApp</th>
                   <th className="p-4">Role / Hak Akses</th>
-                  <th className="p-4">Tanggal Bergabung</th>
+                  <th className="p-4">Tanggal Masuk</th>
+                  <th className="p-4 text-center">Sisa Cuti</th>
                   <th className="p-4 text-center">Aksi</th>
                 </tr>
               </thead>
@@ -174,7 +256,11 @@ export default function UsersPage() {
                 {users.map((item: any) => (
                   <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
                     <td className="p-4 text-zinc-900 font-bold text-sm">{item.name}</td>
+                    <td className="p-4 font-mono font-bold text-orange-600">
+                      {item.employee?.employee_code || "-"}
+                    </td>
                     <td className="p-4 text-zinc-650 font-semibold">{item.email}</td>
+                    <td className="p-4 text-zinc-500">{item.employee?.whatsapp_number || "-"}</td>
                     <td className="p-4">
                       <span
                         className={`text-[9px] font-bold px-2.5 py-1 rounded-full uppercase ${
@@ -189,7 +275,12 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="p-4 text-zinc-400">
-                      {formatIndonesianDate(item.created_at)}
+                      {item.employee?.joined_at 
+                        ? formatIndonesianDate(item.employee.joined_at) 
+                        : formatIndonesianDate(item.created_at)}
+                    </td>
+                    <td className="p-4 text-center font-semibold text-zinc-600">
+                      {item.employee?.leave_balance !== undefined ? item.employee.leave_balance : "-"}
                     </td>
                     <td className="p-4 text-center">
                       <div className="flex justify-center gap-2">
@@ -220,8 +311,8 @@ export default function UsersPage() {
       {/* Modal Form Karyawan */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-2xl border border-zinc-100 shadow-2xl w-full max-w-sm p-6 overflow-hidden">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-3 mb-5">
+          <div className="bg-white rounded-2xl border border-zinc-100 shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between border-b border-zinc-100 p-6 pb-4">
               <h3 className="text-sm font-bold text-zinc-950">
                 {selectedUser ? "Ubah Akun Karyawan" : "Tambah Akun Karyawan Baru"}
               </h3>
@@ -230,79 +321,155 @@ export default function UsersPage() {
               </button>
             </div>
 
-            {errorMsg && (
-              <div className="rounded-lg bg-red-50 p-3 text-xs font-semibold text-red-600 border border-red-100 mb-4">
-                {errorMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              {/* Nama */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
-                  Nama Lengkap
-                </label>
-                <input
-                  {...register("name")}
-                  type="text"
-                  className={`w-full rounded-lg border px-3 py-2.5 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent ${
-                    errors.name ? "border-red-300" : "border-zinc-200"
-                  }`}
-                  placeholder="Masukkan nama lengkap..."
-                />
-                {errors.name && (
-                  <p className="mt-1 text-xs text-red-600 font-semibold">{errors.name.message}</p>
+            <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {errorMsg && (
+                  <div className="rounded-lg bg-red-50 p-3 text-xs font-semibold text-red-600 border border-red-100">
+                    {errorMsg}
+                  </div>
                 )}
-              </div>
 
-              {/* Email */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
-                  Alamat Email
-                </label>
-                <input
-                  {...register("email")}
-                  type="email"
-                  className={`w-full rounded-lg border px-3 py-2.5 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent ${
-                    errors.email ? "border-red-300" : "border-zinc-200"
-                  }`}
-                  placeholder="name@company.com"
-                />
-                {errors.email && (
-                  <p className="mt-1 text-xs text-red-600 font-semibold">{errors.email.message}</p>
+                {/* Nama */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    Nama Lengkap
+                  </label>
+                  <input
+                    {...register("name")}
+                    type="text"
+                    className={`w-full rounded-lg border px-3 py-2.5 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent ${
+                      errors.name ? "border-red-300" : "border-zinc-200"
+                    }`}
+                    placeholder="Masukkan nama lengkap..."
+                  />
+                  {errors.name && (
+                    <p className="mt-1 text-xs text-red-600 font-semibold">{errors.name.message}</p>
+                  )}
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    Alamat Email
+                  </label>
+                  <input
+                    {...register("email")}
+                    type="email"
+                    className={`w-full rounded-lg border px-3 py-2.5 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent ${
+                      errors.email ? "border-red-300" : "border-zinc-200"
+                    }`}
+                    placeholder="name@company.com"
+                  />
+                  {errors.email && (
+                    <p className="mt-1 text-xs text-red-600 font-semibold">{errors.email.message}</p>
+                  )}
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    Kata Sandi {selectedUser && <span className="text-[10px] text-zinc-450 normal-case">(Kosongkan jika tidak diubah)</span>}
+                  </label>
+                  <input
+                    {...register("password")}
+                    type="password"
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2.5 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                {/* Role Dropdown */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    Hak Akses / Role
+                  </label>
+                  <select
+                    {...register("role")}
+                    className="w-full rounded-lg border px-3 py-2.5 text-xs text-zinc-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent border-zinc-200"
+                  >
+                    <option value="Employee">Employee (Karyawan)</option>
+                    <option value="Admin">Admin (Super Admin)</option>
+                    <option value="Owner">Owner (Pemilik Perusahaan)</option>
+                  </select>
+                </div>
+
+                {/* Employee ID (Tampil Hanya Saat Edit & Jika Role = Employee) */}
+                {selectedRole === "Employee" && selectedUser && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                      Employee ID
+                    </label>
+                    <input
+                      type="text"
+                      disabled
+                      value={selectedUser.employee?.employee_code || "-"}
+                      className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-450 focus:outline-none"
+                    />
+                  </div>
                 )}
-              </div>
 
-              {/* Password */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
-                  Kata Sandi {selectedUser && <span className="text-[10px] text-zinc-450 normal-case">(Kosongkan jika tidak diubah)</span>}
-                </label>
-                <input
-                  {...register("password")}
-                  type="password"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2.5 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent"
-                  placeholder="••••••••"
-                />
-              </div>
+                {/* Tanggal Masuk (Tampil Jika Role = Employee) */}
+                {selectedRole === "Employee" && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Tanggal Masuk
+                    </label>
+                    <input
+                      {...register("joined_at")}
+                      type="date"
+                      className={`w-full rounded-lg border px-3 py-2.5 text-xs text-zinc-950 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent ${
+                        errors.joined_at ? "border-red-300" : "border-zinc-200"
+                      }`}
+                    />
+                    {errors.joined_at && (
+                      <p className="mt-1 text-xs text-red-600 font-semibold">{errors.joined_at.message}</p>
+                    )}
+                  </div>
+                )}
 
-              {/* Role Dropdown */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
-                  Hak Akses / Role
-                </label>
-                <select
-                  {...register("role")}
-                  className="w-full rounded-lg border px-3 py-2.5 text-xs text-zinc-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent border-zinc-200"
-                >
-                  <option value="Employee">Employee (Karyawan)</option>
-                  <option value="Admin">Admin (Super Admin)</option>
-                  <option value="Owner">Owner (Pemilik Perusahaan)</option>
-                </select>
+                {/* Nomor WhatsApp (Tampil Jika Role = Employee) */}
+                {selectedRole === "Employee" && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Nomor WhatsApp (Aktif)
+                    </label>
+                    <input
+                      {...register("whatsapp_number")}
+                      type="text"
+                      className={`w-full rounded-lg border px-3 py-2.5 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent ${
+                        errors.whatsapp_number ? "border-red-300" : "border-zinc-200"
+                      }`}
+                      placeholder="Contoh: 628123456789 (Diawali 62)"
+                    />
+                    {errors.whatsapp_number && (
+                      <p className="mt-1 text-xs text-red-600 font-semibold">{errors.whatsapp_number.message}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Kuota Cuti Tahunan (Tampil Jika Role = Employee) */}
+                {selectedRole === "Employee" && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Kuota Cuti Tahunan (Hari)
+                    </label>
+                    <input
+                      {...register("leave_balance")}
+                      type="number"
+                      className={`w-full rounded-lg border px-3 py-2.5 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent ${
+                        errors.leave_balance ? "border-red-300" : "border-zinc-200"
+                      }`}
+                      placeholder="Default: 12"
+                    />
+                    {errors.leave_balance && errors.leave_balance.message && (
+                      <p className="mt-1 text-xs text-red-600 font-semibold">{String(errors.leave_balance.message)}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Tombol Aksi */}
-              <div className="pt-4 flex gap-3 border-t border-zinc-100">
+              <div className="p-6 bg-zinc-50/50 border-t border-zinc-100 flex gap-3 rounded-b-2xl">
                 <button
                   type="button"
                   onClick={closeModal}
@@ -329,6 +496,19 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+      {/* Custom Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        variant={confirmConfig.variant}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        isLoading={deleteMutation.isPending}
+      />
     </DashboardLayout>
   );
 }

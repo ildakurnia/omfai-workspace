@@ -6,6 +6,8 @@ import { Calendar as CalendarIcon, Plus, Trash2, RefreshCw, X, Loader2 } from "l
 import DashboardLayout from "@/components/dashboard-layout";
 import api from "@/lib/api";
 import { formatIndonesianDate } from "@/lib/utils";
+import AlertModal from "@/components/alert-modal";
+import ConfirmModal from "@/components/confirm-modal";
 
 export default function HolidaysPage() {
   const queryClient = useQueryClient();
@@ -13,6 +15,60 @@ export default function HolidaysPage() {
   const [holidayDate, setHolidayDate] = useState("");
   const [holidayName, setHolidayName] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Custom Alert & Confirm Modals State
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "success" | "error" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    variant: "success",
+  });
+
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "danger" | "warning" | "info";
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    variant: "danger",
+    onConfirm: () => {},
+  });
+
+  const showAlert = (message: string, variant: "success" | "error" | "warning" | "info" = "success", title: string = "Informasi") => {
+    setAlertConfig({
+      isOpen: true,
+      title,
+      message,
+      variant,
+    });
+  };
+
+  const showConfirm = (
+    message: string,
+    onConfirm: () => void,
+    variant: "danger" | "warning" | "info" = "danger",
+    title: string = "Konfirmasi"
+  ) => {
+    setConfirmConfig({
+      isOpen: true,
+      title,
+      message,
+      variant,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  };
 
   // Lock background scroll when modal is open
   useEffect(() => {
@@ -66,10 +122,10 @@ export default function HolidaysPage() {
     try {
       const currentYear = new Date().getFullYear();
       const response = await api.post("/holidays/sync", { year: currentYear });
-      alert(response.data.message || "Sinkronisasi hari libur berhasil.");
+      showAlert(response.data.message || "Sinkronisasi hari libur berhasil.", "success", "Sinkronisasi Sukses");
       queryClient.invalidateQueries({ queryKey: ["allHolidays"] });
     } catch (err: any) {
-      alert(err.response?.data?.message || "Gagal menyinkronkan hari libur nasional.");
+      showAlert(err.response?.data?.message || "Gagal menyinkronkan hari libur nasional.", "error", "Sinkronisasi Gagal");
     } finally {
       setIsSyncing(false);
     }
@@ -99,9 +155,14 @@ export default function HolidaysPage() {
   };
 
   const handleDelete = (id: number, name: string) => {
-    if (confirm(`Apakah Anda yakin ingin menghapus hari libur "${name}"? Hari ini akan kembali dihitung sebagai hari kerja aktif.`)) {
-      deleteHolidayMutation.mutate(id);
-    }
+    showConfirm(
+      `Apakah Anda yakin ingin menghapus hari libur "${name}"? Hari ini akan kembali dihitung sebagai hari kerja aktif.`,
+      () => {
+        deleteHolidayMutation.mutate(id);
+      },
+      "danger",
+      "Hapus Hari Libur"
+    );
   };
 
   return (
@@ -114,11 +175,11 @@ export default function HolidaysPage() {
           </p>
         </div>
         
-        <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto shrink-0">
           <button
             onClick={handleSyncHolidays}
             disabled={isSyncing}
-            className="flex items-center justify-center gap-2 bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-bold px-4 py-2.5 rounded-lg border border-zinc-200 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-bold px-4 py-2.5 rounded-lg border border-zinc-200 shadow-sm transition-all cursor-pointer disabled:opacity-50"
           >
             {isSyncing ? (
               <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
@@ -130,7 +191,7 @@ export default function HolidaysPage() {
           
           <button
             onClick={openAddModal}
-            className="flex items-center justify-center gap-2 bg-[#FF8200] hover:bg-[#e07200] text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm transition-all cursor-pointer"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#FF8200] hover:bg-[#e07200] text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow-sm transition-all cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             Tambah Libur Kustom
@@ -139,7 +200,7 @@ export default function HolidaysPage() {
       </div>
 
       {/* Tabel Libur */}
-      <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm overflow-hidden max-w-4xl">
+      <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm overflow-hidden w-full">
         <div className="overflow-x-auto">
           {isLoading ? (
             <div className="space-y-3 p-6 animate-pulse">
@@ -161,11 +222,11 @@ export default function HolidaysPage() {
             <table className="min-w-[600px] md:min-w-full divide-y divide-zinc-150 text-left text-xs">
               <thead className="bg-zinc-50/70">
                 <tr className="text-zinc-400 uppercase font-bold tracking-wider">
-                  <th className="p-4">Tanggal</th>
-                  <th className="p-4">Hari</th>
-                  <th className="p-4">Nama Hari Libur</th>
-                  <th className="p-4">Tipe Libur</th>
-                  <th className="p-4 text-center">Aksi</th>
+                  <th className="p-4 pl-6 w-[20%]">Tanggal</th>
+                  <th className="p-4 w-[15%]">Hari</th>
+                  <th className="p-4 w-[40%]">Nama Hari Libur</th>
+                  <th className="p-4 w-[15%]">Tipe Libur</th>
+                  <th className="p-4 pr-6 text-center w-[10%]">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 font-medium">
@@ -176,7 +237,7 @@ export default function HolidaysPage() {
                   
                   return (
                     <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
-                      <td className="p-4 text-zinc-900 font-bold text-sm">
+                      <td className="p-4 pl-6 text-zinc-900 font-bold text-sm">
                         {formatIndonesianDate(itemDate, { month: "long" })}
                       </td>
                       <td className="p-4 text-zinc-500 font-semibold">{dayLabel}</td>
@@ -192,10 +253,10 @@ export default function HolidaysPage() {
                           </span>
                         )}
                       </td>
-                      <td className="p-4 text-center">
+                      <td className="p-4 pr-6 text-center">
                         <button
                           onClick={() => handleDelete(item.id, item.name)}
-                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-all cursor-pointer"
+                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-all cursor-pointer inline-flex items-center justify-center"
                           title="Hapus Hari Libur"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -283,6 +344,27 @@ export default function HolidaysPage() {
           </div>
         </div>
       )}
+
+      {/* Custom Alert Modal */}
+      <AlertModal
+        isOpen={alertConfig.isOpen}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        variant={alertConfig.variant}
+      />
+
+      {/* Custom Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        variant={confirmConfig.variant}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+      />
     </DashboardLayout>
   );
 }

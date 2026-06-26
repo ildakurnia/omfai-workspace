@@ -17,6 +17,7 @@ import {
   Calendar,
   Key,
   Loader2,
+  CalendarCheck,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -100,6 +101,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       href: "/activities",
       icon: ClipboardList,
       show: true, // Semua role bisa melihat / mengelola list aktivitas (sesuai filter)
+    },
+    {
+      name: "Absensi & Cuti",
+      href: "/attendance-leave",
+      icon: CalendarCheck,
+      show: true,
     },
     {
       name: "Kelola Kategori",

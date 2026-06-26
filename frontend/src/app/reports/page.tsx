@@ -1,20 +1,69 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileDown, FileBarChart2, Filter, Loader2, Calendar } from "lucide-react";
+import { FileDown, FileBarChart2, Filter, Loader2, Calendar, Moon } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import api from "@/lib/api";
-import { formatDuration, formatActiveDuration, getDateRange, toLocalDateString, formatIndonesianDate } from "@/lib/utils";
+import { formatDuration, formatActiveDuration, getDateRange, toLocalDateString, formatIndonesianDate, formatActiveOvertimeDuration, calculateOvertimeMinutes } from "@/lib/utils";
+import AlertModal from "@/components/alert-modal";
 
 export default function ReportsPage() {
   // States untuk filter pencarian laporan
   const [filterPeriod, setFilterPeriod] = useState("all");
+
+  // Custom Alert Modal State
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "success" | "error" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    variant: "success",
+  });
+
+  const showAlert = (message: string, variant: "success" | "error" | "warning" | "info" = "success", title: string = "Informasi") => {
+    setAlertConfig({
+      isOpen: true,
+      title,
+      message,
+      variant,
+    });
+  };
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterUser, setFilterUser] = useState("");
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const userParam = params.get("user_id");
+      const periodParam = params.get("period");
+      const startParam = params.get("start_date");
+      const endParam = params.get("end_date");
+      const statusParam = params.get("status");
+      const categoryParam = params.get("category_id");
+      if (userParam) setFilterUser(userParam);
+      if (periodParam) {
+        setFilterPeriod(periodParam);
+        if (periodParam === "month") {
+          const firstDay = toLocalDateString(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+          const lastDay = toLocalDateString(new Date());
+          setFilterStartDate(firstDay);
+          setFilterEndDate(lastDay);
+        }
+      }
+      if (startParam) setFilterStartDate(startParam);
+      if (endParam) setFilterEndDate(endParam);
+      if (statusParam) setFilterStatus(statusParam);
+      if (categoryParam) setFilterCategory(categoryParam);
+    }
+  }, []);
 
   const handlePeriodChange = (val: string) => {
     setFilterPeriod(val);
@@ -110,7 +159,7 @@ export default function ReportsPage() {
       link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      alert("Gagal mengunduh file laporan PDF. Silakan periksa koneksi backend.");
+      showAlert("Gagal mengunduh file laporan PDF. Silakan periksa koneksi backend.", "error", "Unduh Laporan Gagal");
     } finally {
       setIsDownloading(false);
     }
@@ -124,6 +173,7 @@ export default function ReportsPage() {
     setFilterStartDate("");
     setFilterEndDate("");
   };
+
 
   return (
     <DashboardLayout>
@@ -269,6 +319,7 @@ export default function ReportsPage() {
           </span>
         </div>
 
+
         <div className="overflow-x-auto">
           {isReportLoading ? (
             <div className="space-y-3 p-6 animate-pulse">
@@ -329,11 +380,19 @@ export default function ReportsPage() {
                       >
                         {act.status.replace("_", " ")}
                       </span>
-                      <div className="text-xs text-zinc-500 font-semibold mt-1.5 flex items-center gap-1">
-                        <span>⏱️</span>
-                        <span>{formatActiveDuration(act.created_at, act.completed_at, act.status, act.logs, holidaySet)}</span>
-                        {act.status === "in_progress" && (
-                          <span className="text-zinc-400 font-medium text-[10px]">(aktif)</span>
+                      <div className="text-xs text-zinc-505 font-medium mt-1.5 space-y-1">
+                        <div className="flex items-center gap-1">
+                          <span>⏱️</span>
+                          <span>{formatActiveDuration(act.created_at, act.completed_at, act.status, act.logs, holidaySet)}</span>
+                          {act.status === "in_progress" && (
+                            <span className="text-zinc-400 font-medium text-[10px]">(aktif)</span>
+                          )}
+                        </div>
+                        {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason) && (
+                          <div className="flex items-center gap-1 text-orange-600 font-bold">
+                            <span>🌙</span>
+                            <span>Lembur: {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason)}</span>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -361,6 +420,15 @@ export default function ReportsPage() {
           )}
         </div>
       </div>
+
+      {/* Custom Alert Modal */}
+      <AlertModal
+        isOpen={alertConfig.isOpen}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        variant={alertConfig.variant}
+      />
     </DashboardLayout>
   );
 }

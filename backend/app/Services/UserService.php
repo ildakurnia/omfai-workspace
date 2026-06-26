@@ -15,11 +15,11 @@ class UserService
      */
     public function getAllUsers(): Collection
     {
-        return User::with('roles')->get();
+        return User::with(['roles', 'employee.attendances', 'employee.leaveRequests'])->get();
     }
 
     /**
-     * Membuat user baru dan mengaitkan role Spatie.
+     * Membuat user baru dan mengaitkan role Spatie beserta profile Employee.
      * 
      * @param array $data
      * @return User
@@ -34,11 +34,20 @@ class UserService
 
         $user->assignRole($data['role']);
 
-        return $user->load('roles');
+        if ($data['role'] === 'Employee') {
+            $user->employee()->create([
+                'name' => $data['name'],
+                'joined_at' => $data['joined_at'],
+                'whatsapp_number' => $data['whatsapp_number'],
+                'leave_balance' => $data['leave_balance'] ?? 12,
+            ]);
+        }
+
+        return $user->load(['roles', 'employee']);
     }
 
     /**
-     * Memperbarui data user dan mensinkronkan role Spatie.
+     * Memperbarui data user dan mensinkronkan role Spatie beserta profile Employee.
      * 
      * @param User $user
      * @param array $data
@@ -58,7 +67,22 @@ class UserService
         $user->update($updateData);
         $user->syncRoles([$data['role']]);
 
-        return $user->load('roles');
+        if ($data['role'] === 'Employee') {
+            $user->employee()->updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'name' => $data['name'],
+                    'joined_at' => $data['joined_at'],
+                    'whatsapp_number' => $data['whatsapp_number'],
+                    'leave_balance' => $data['leave_balance'] ?? 12,
+                ]
+            );
+        } else {
+            // Hapus profil karyawan jika diturunkan/diubah ke role Admin/Owner
+            $user->employee()->delete();
+        }
+
+        return $user->load(['roles', 'employee']);
     }
 
     /**

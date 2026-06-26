@@ -23,12 +23,23 @@ import {
   MoreVertical,
   Lock,
   Clock,
+  Moon,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import ReviewModal from "@/components/review-modal";
 import ConfirmModal from "@/components/confirm-modal";
+import AlertModal from "@/components/alert-modal";
 import api from "@/lib/api";
-import { formatDuration, formatActiveDuration, getDateRange, toLocalDateString, formatIndonesianDate } from "@/lib/utils";
+import { 
+  formatDuration, 
+  formatActiveDuration, 
+  getDateRange, 
+  toLocalDateString, 
+  formatIndonesianDate,
+  formatActiveOvertimeDuration,
+  calculateOvertimeMinutes,
+  playNotificationChime 
+} from "@/lib/utils";
 
 // Schema validasi Zod untuk form aktivitas
 const activitySchema = z.object({
@@ -81,9 +92,104 @@ export default function ActivitiesPage() {
   const [reviewActivity, setReviewActivity] = useState<any>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
 
+
+
+  const isOutsideOperationalHoursForTime = (time: Date) => {
+    const day = time.getDay();
+    const hours = time.getHours();
+    const dateStr = `${time.getFullYear()}-${String(time.getMonth() + 1).padStart(2, '0')}-${String(time.getDate()).padStart(2, '0')}`;
+    
+    if (day === 0) return true;
+    if (holidaySet && holidaySet.has(dateStr)) return true;
+    if (day === 6) return hours < 8 || hours >= 12;
+    return hours < 8 || hours >= 17;
+  };
+
+  const isCurrentTimeOutside = () => {
+    return isOutsideOperationalHoursForTime(new Date());
+  };
+
+  const isTrackingOvertime = (act: any) => {
+    if (act.status !== "in_progress") return false;
+    return act.hold_reason === "Lembur" || (act.hold_reason && act.hold_reason.includes("Lembur"));
+  };
+
+  const handleStartOvertime = async (activity: any) => {
+    try {
+      if (activity.status === "in_progress") {
+        await api.put(`/activities/${activity.id}`, {
+          category_id: String(activity.category_id),
+          activity: activity.activity,
+          status: "on_hold",
+          hold_reason: "Transisi ke Lembur",
+          reference_link: activity.reference_link || "",
+          progress_note: activity.progress_note || "",
+        });
+      }
+      
+      await api.put(`/activities/${activity.id}`, {
+        category_id: String(activity.category_id),
+        activity: activity.activity,
+        status: "in_progress",
+        hold_reason: "Lembur",
+        reference_link: activity.reference_link || "",
+        progress_note: activity.progress_note || "",
+      });
+      
+      showAlert("Sesi lembur berhasil dimulai.", "success", "Lembur Dimulai");
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+    } catch (err: any) {
+      showAlert(err.response?.data?.message || "Gagal memulai lembur.", "error", "Gagal");
+    }
+  };
+
+  const handleStopOvertime = async (activity: any) => {
+    try {
+      await api.put(`/activities/${activity.id}`, {
+        category_id: String(activity.category_id),
+        activity: activity.activity,
+        status: "on_hold",
+        hold_reason: "Selesai Lembur",
+        reference_link: activity.reference_link || "",
+        progress_note: activity.progress_note || "",
+      });
+      
+      showAlert("Sesi lembur dihentikan.", "info", "Lembur Selesai");
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+    } catch (err: any) {
+      showAlert(err.response?.data?.message || "Gagal menghentikan lembur.", "error", "Gagal");
+    }
+  };
+
+
+
   // States untuk konfirmasi hapus kustom
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [activityIdToDelete, setActivityIdToDelete] = useState<number | null>(null);
+
+  // Custom Alert Modal State
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "success" | "error" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    variant: "success",
+  });
+
+  const showAlert = (message: string, variant: "success" | "error" | "warning" | "info" = "success", title: string = "Informasi") => {
+    setAlertConfig({
+      isOpen: true,
+      title,
+      message,
+      variant,
+    });
+  };
 
   // States untuk dropdown aksi per baris
   const [activeDropdownId, setActiveDropdownId] = useState<number | null>(null);
@@ -211,6 +317,8 @@ export default function ActivitiesPage() {
     },
   });
 
+
+
   // Mutation: Simpan / Edit Aktivitas
   const saveMutation = useMutation({
     mutationFn: async (data: ActivityFormValues) => {
@@ -303,7 +411,7 @@ export default function ActivitiesPage() {
       queryClient.invalidateQueries({ queryKey: ["activities"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
     } catch (err: any) {
-      alert(err.response?.data?.message || "Gagal mengubah status aktivitas.");
+      showAlert(err.response?.data?.message || "Gagal mengubah status aktivitas.", "error", "Status Gagal Diubah");
     }
   };
 
@@ -504,7 +612,10 @@ export default function ActivitiesPage() {
 
       {/* 2. Tabel Data Aktivitas */}
       <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div 
+          className="overflow-x-auto" 
+          style={{ minHeight: activitiesData?.data?.length > 0 ? '280px' : 'auto' }}
+        >
           {isListLoading ? (
             <div className="space-y-3 p-6 animate-pulse">
               <div className="h-10 bg-zinc-100 rounded" />
@@ -534,10 +645,12 @@ export default function ActivitiesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 font-medium">
-                {activitiesData.data.map((act: any) => {
+                {activitiesData.data.map((act: any, index: number) => {
                   const canEdit =
                     isAdmin ||
                     (isEmployee && act.status !== "done" && act.user_id === user['id']);
+                  
+                  const openUpwards = index > 0 && index >= activitiesData.data.length - 2;
                   
                   return (
                     <tr key={act.id} className="text-zinc-700 hover:bg-zinc-50/50">
@@ -591,11 +704,19 @@ export default function ActivitiesPage() {
                         >
                           {act.status.replace("_", " ")}
                         </span>
-                        <div className="text-xs text-zinc-500 font-semibold mt-1.5 flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
-                          <span>{formatActiveDuration(act.created_at, act.completed_at, act.status, act.logs, holidaySet)}</span>
-                          {act.status === "in_progress" && (
-                            <span className="text-zinc-400 font-medium text-[9.5px]">(aktif)</span>
+                        <div className="text-xs text-zinc-505 font-medium mt-1.5 space-y-1">
+                          <div className="flex items-center gap-1">
+                            <span className="shrink-0 text-zinc-400">⏱️</span>
+                            <span>{formatActiveDuration(act.created_at, act.completed_at, act.status, act.logs, holidaySet)}</span>
+                            {act.status === "in_progress" && (
+                              <span className="text-zinc-400 font-medium text-[9.5px]">(aktif)</span>
+                            )}
+                          </div>
+                          {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason) && (
+                            <div className="flex items-center gap-1 text-orange-600 font-bold">
+                              <span className="shrink-0">🌙</span>
+                              <span>Lembur: {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason)}</span>
+                            </div>
                           )}
                         </div>
                       </td>
@@ -644,7 +765,9 @@ export default function ActivitiesPage() {
                                 <div className="fixed inset-0 z-20" onClick={() => setActiveDropdownId(null)} />
  
                                 {/* Dropdown Menu Container */}
-                                <div className="absolute right-0 mt-1.5 w-44 rounded-xl bg-white border border-zinc-200 shadow-xl z-30 py-1.5 text-left animate-fadeIn">
+                                <div className={`absolute right-0 w-44 rounded-xl bg-white border border-zinc-200 shadow-xl z-30 py-1.5 text-left animate-fadeIn ${
+                                  openUpwards ? "bottom-full mb-1.5" : "top-full mt-1.5"
+                                }`}>
                                   {/* Opsi Aksi Owner (Review/Feedback) */}
                                   {isOwner && (
                                     <button
@@ -668,16 +791,42 @@ export default function ActivitiesPage() {
                                       {/* Quick Status Toggles */}
                                       {act.status === "in_progress" && (
                                         <>
-                                          <button
-                                            onClick={() => {
-                                              handleQuickUpdateStatus(act, "on_hold");
-                                              setActiveDropdownId(null);
-                                            }}
-                                            className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-semibold text-orange-600 hover:bg-orange-50/40 cursor-pointer"
-                                          >
-                                            <Pause className="h-4 w-4 text-orange-500" />
-                                            Jeda Pekerjaan
-                                          </button>
+                                          {isCurrentTimeOutside() ? (
+                                            !isTrackingOvertime(act) ? (
+                                              <button
+                                                onClick={() => {
+                                                  handleStartOvertime(act);
+                                                  setActiveDropdownId(null);
+                                                }}
+                                                className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-bold text-orange-600 hover:bg-orange-50/40 cursor-pointer"
+                                              >
+                                                <Moon className="h-4 w-4 text-orange-500" />
+                                                Mulai Lembur
+                                              </button>
+                                            ) : (
+                                              <button
+                                                onClick={() => {
+                                                  handleStopOvertime(act);
+                                                  setActiveDropdownId(null);
+                                                }}
+                                                className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-bold text-orange-600 hover:bg-orange-50/40 cursor-pointer"
+                                              >
+                                                <Pause className="h-4 w-4 text-orange-500" />
+                                                Selesai Lembur
+                                              </button>
+                                            )
+                                          ) : (
+                                            <button
+                                              onClick={() => {
+                                                handleQuickUpdateStatus(act, "on_hold");
+                                                setActiveDropdownId(null);
+                                              }}
+                                              className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-semibold text-orange-600 hover:bg-orange-50/40 cursor-pointer"
+                                            >
+                                              <Pause className="h-4 w-4 text-orange-500" />
+                                              On Hold
+                                            </button>
+                                          )}
                                           <button
                                             onClick={() => {
                                               handleQuickUpdateStatus(act, "done");
@@ -693,16 +842,29 @@ export default function ActivitiesPage() {
  
                                       {act.status === "on_hold" && (
                                         <>
-                                          <button
-                                            onClick={() => {
-                                              handleQuickUpdateStatus(act, "in_progress");
-                                              setActiveDropdownId(null);
-                                            }}
-                                            className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50/40 cursor-pointer"
-                                          >
-                                            <Play className="h-4 w-4 text-blue-500" />
-                                            Lanjutkan
-                                          </button>
+                                          {isCurrentTimeOutside() ? (
+                                            <button
+                                              onClick={() => {
+                                                handleStartOvertime(act);
+                                                setActiveDropdownId(null);
+                                              }}
+                                              className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-bold text-orange-600 hover:bg-orange-50/40 cursor-pointer"
+                                            >
+                                              <Moon className="h-4 w-4 text-orange-500" />
+                                              Mulai Lembur
+                                            </button>
+                                          ) : (
+                                            <button
+                                              onClick={() => {
+                                                handleQuickUpdateStatus(act, "in_progress");
+                                                setActiveDropdownId(null);
+                                              }}
+                                              className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50/40 cursor-pointer"
+                                            >
+                                              <Play className="h-4 w-4 text-blue-500" />
+                                              Lanjutkan
+                                            </button>
+                                          )}
                                           <button
                                             onClick={() => {
                                               handleQuickUpdateStatus(act, "done");
@@ -1019,7 +1181,7 @@ export default function ActivitiesPage() {
                   onClick={submitQuickHold}
                   className="flex-1 bg-gradient-to-r from-orange-500 to-[#FF8200] hover:from-orange-600 hover:to-[#e07200] text-white text-xs font-bold py-2.5 rounded-lg transition-all cursor-pointer"
                 >
-                  Jeda Aktivitas (Hold)
+                  On Hold
                 </button>
               </div>
             </div>
@@ -1056,6 +1218,17 @@ export default function ActivitiesPage() {
         variant="danger"
         isLoading={deleteMutation.isPending}
       />
+
+      {/* Custom Alert Modal */}
+      <AlertModal
+        isOpen={alertConfig.isOpen}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        variant={alertConfig.variant}
+      />
+
+
     </DashboardLayout>
   );
 }

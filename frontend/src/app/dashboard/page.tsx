@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Cookies from "js-cookie";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Users,
   ClipboardCheck,
@@ -13,13 +13,109 @@ import {
   PlusCircle,
   FolderOpen,
   ArrowRight,
+  Trophy,
+  Calendar,
+  Clock,
+  MapPin,
+  Loader2,
+  CheckCircle,
+  UserCheck,
+  X,
+  FileText,
+  CalendarX,
+  Ban,
+  Moon,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import api from "@/lib/api";
-import { formatDuration, formatActiveDuration, formatIndonesianDate } from "@/lib/utils";
+import { formatDuration, formatActiveDuration, formatIndonesianDate, toLocalDateString, formatActiveOvertimeDuration, calculateOvertimeMinutes } from "@/lib/utils";
+import AlertModal from "@/components/alert-modal";
+
+// Helper to generate the monthly grid and calculate attendance statuses
+const generateMonthlyGrid = (monthStr: string, attendances: any[], leaves: any[], holidays: any[]) => {
+  if (!monthStr) return [];
+  const [year, month] = monthStr.split("-").map(Number);
+  const date = new Date(year, month - 1, 1);
+  const days = [];
+  
+  while (date.getMonth() === month - 1) {
+    days.push(new Date(date));
+    date.setDate(date.getDate() + 1);
+  }
+
+  const formattedHolidays = (holidays || []).map((h: any) => h.date);
+
+  return days.map((day) => {
+    const dayStr = toLocalDateString(day);
+    const dayOfWeek = day.getDay();
+    
+    const attendance = (attendances || []).find((a: any) => a.date === dayStr);
+    const leave = (leaves || []).find((l: any) => {
+      return dayStr >= l.start_date && dayStr <= l.end_date && l.status === "approved";
+    });
+
+    let status = "-";
+    const todayString = new Date().toLocaleDateString("en-CA");
+    const isToday = dayStr === todayString;
+    const isPast = dayStr < todayString;
+    const isSunday = dayOfWeek === 0;
+    const isHoliday = formattedHolidays.includes(dayStr);
+
+    if (attendance) {
+      status = attendance.status; // "present" or "late"
+    } else if (leave) {
+      status = leave.type; // "annual_leave", "sick_leave", "permission"
+    } else if (isSunday) {
+      status = "weekend";
+    } else if (isHoliday) {
+      status = "holiday";
+    } else if (isToday) {
+      status = "not_yet";
+    } else if (isPast) {
+      status = "absent";
+    } else {
+      status = "future";
+    }
+
+    return { status };
+  });
+};
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
+  const [activeAttendanceTab, setActiveAttendanceTab] = useState<string>("all");
+
+  // Custom Alert Modal State
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant: "success" | "error" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    variant: "success",
+  });
+
+  const showAlert = (message: string, variant: "success" | "error" | "warning" | "info" = "success", title: string = "Informasi") => {
+    setAlertConfig({
+      isOpen: true,
+      title,
+      message,
+      variant,
+    });
+  };
+
+  const formatLateMinutes = (minutes: number) => {
+    const rounded = Math.round(minutes);
+    if (rounded < 60) {
+      return `${rounded} Menit`;
+    }
+    const hours = Math.floor(rounded / 60);
+    const remainingMinutes = rounded % 60;
+    return `${hours} Jam ${remainingMinutes} Menit`;
+  };
 
   useEffect(() => {
     const userCookie = Cookies.get("omfai_user");
@@ -36,6 +132,146 @@ export default function DashboardPage() {
   const isEmployee = roles.includes("Employee");
   const isOwnerOrAdmin = roles.includes("Owner") || roles.includes("Admin");
 
+  const queryClient = useQueryClient();
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+
+  // Query: Ambil riwayat absen login karyawan
+  const { data: attendanceHistory, isLoading: attendanceLoading } = useQuery({
+    queryKey: ["attendanceHistory"],
+    queryFn: async () => {
+      const res = await api.get("/history-absen");
+      return res.data;
+    },
+    enabled: !!isEmployee,
+  });
+
+  // Query: Ambil riwayat cuti login karyawan
+  const { data: leaveHistory, isLoading: leaveLoading } = useQuery({
+    queryKey: ["leaveHistory"],
+    queryFn: async () => {
+      const res = await api.get("/history-cuti");
+      return res.data;
+    },
+    enabled: !!isEmployee,
+  });
+
+  // Query: Ambil Geofences aktif
+  const { data: geofences } = useQuery({
+    queryKey: ["geofencesList"],
+    queryFn: async () => {
+      const res = await api.get("/geofences");
+      return res.data.data || [];
+    },
+    enabled: !!isEmployee,
+  });
+
+  // Mutation: Clock In / Clock Out
+  const tapMutation = useMutation({
+    mutationFn: async (coords: { latitude: number; longitude: number }) => {
+      const res = await api.post("/absen", coords);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      setGpsError(null);
+      queryClient.invalidateQueries({ queryKey: ["attendanceHistory"] });
+      showAlert(data.message, "success", "Absensi Berhasil");
+    },
+    onError: (err: any) => {
+      setGpsError(err.response?.data?.message || "Gagal memproses absen.");
+    },
+  });
+
+  // Trigger GPS Absen Masuk/Pulang
+  const handleGPSAbsen = () => {
+    setGpsLoading(true);
+    setGpsError(null);
+
+    if (!navigator.geolocation) {
+      setGpsError("Geolocation tidak didukung oleh browser Anda.");
+      setGpsLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        tapMutation.mutate(coords, {
+          onSettled: () => setGpsLoading(false),
+        });
+      },
+      (error) => {
+        let msg = "Gagal mendapatkan lokasi Anda.";
+        if (error.code === 1) msg = "Izin akses lokasi ditolak oleh browser Anda.";
+        else if (error.code === 2) msg = "Lokasi tidak dapat ditentukan.";
+        else if (error.code === 3) msg = "Waktu pencarian lokasi habis.";
+        setGpsError(msg);
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+  const todayStr = toLocalDateString(new Date());
+
+  // Cache state to prevent layout flashes
+  const [cachedState, setCachedState] = useState<{
+    attendance: any;
+    isLeave: boolean;
+    hasLoaded: boolean;
+  }>({ attendance: null, isLeave: false, hasLoaded: false });
+
+  // Load cache on mount to prevent Next.js hydration mismatch
+  useEffect(() => {
+    try {
+      const storedDate = localStorage.getItem("omfai_cached_date");
+      if (storedDate === todayStr) {
+        const attendance = JSON.parse(localStorage.getItem("omfai_cached_attendance") || "null");
+        const isLeave = localStorage.getItem("omfai_cached_on_leave") === "true";
+        setCachedState((prev) => {
+          if (!prev.hasLoaded) {
+            return { attendance, isLeave, hasLoaded: true };
+          }
+          return prev;
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [todayStr]);
+
+  useEffect(() => {
+    if (isEmployee && !attendanceLoading && !leaveLoading) {
+      const actualAttendance = attendanceHistory?.data
+        ? attendanceHistory.data.find((a: any) => a.date === todayStr)
+        : null;
+      const actualLeave = leaveHistory?.data
+        ? leaveHistory.data.some((l: any) => {
+            return todayStr >= l.start_date && todayStr <= l.end_date && l.status === "approved";
+          })
+        : false;
+
+      setCachedState({
+        attendance: actualAttendance,
+        isLeave: actualLeave,
+        hasLoaded: true,
+      });
+
+      try {
+        localStorage.setItem("omfai_cached_date", todayStr);
+        localStorage.setItem("omfai_cached_attendance", JSON.stringify(actualAttendance));
+        localStorage.setItem("omfai_cached_on_leave", String(actualLeave));
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [attendanceHistory, leaveHistory, attendanceLoading, leaveLoading, isEmployee, todayStr]);
+
+  const todayAttendance = cachedState.attendance;
+
   // Query Data Dashboard (khusus Owner & Admin)
   const {
     data: dashboardData,
@@ -48,6 +284,24 @@ export default function DashboardPage() {
       return response.data.data;
     },
     enabled: !!isOwnerOrAdmin,
+  });
+
+  // Query Data Aktivitas Saya Bulan Ini (khusus Employee untuk total lembur)
+  const { data: currentMonthActivities } = useQuery({
+    queryKey: ["currentMonthOvertimeActivities"],
+    queryFn: async () => {
+      const start = toLocalDateString(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+      const end = toLocalDateString(new Date());
+      const res = await api.get("/activities", {
+        params: {
+          start_date: start,
+          end_date: end,
+          per_page: 200,
+        }
+      });
+      return res.data.data?.data || [];
+    },
+    enabled: !!isEmployee,
   });
 
   // Query Data Aktivitas Saya (khusus Employee)
@@ -116,6 +370,177 @@ export default function DashboardPage() {
           <p className="text-sm text-zinc-500 font-medium mt-1.5">Pantau kondisi aktivitas seluruh karyawan secara real-time.</p>
         </div>
 
+        {/* Widget Kehadiran Hari Ini */}
+        {!isDashboardLoading && data.attendanceSummary && (
+          <div className="bg-white rounded-2xl border border-zinc-150 p-6 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
+                  <Calendar className="h-4.5 w-4.5 text-[#FF8200]" />
+                  Monitoring Kehadiran Hari Ini
+                </h3>
+                <p className="text-[11px] text-zinc-400 font-semibold mt-0.5">
+                  Daftar kehadiran dan perizinan karyawan tanggal {formatIndonesianDate(new Date().toISOString().slice(0, 10))}.
+                </p>
+              </div>
+              {activeAttendanceTab !== "all" && (
+                <button
+                  onClick={() => setActiveAttendanceTab("all")}
+                  className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold px-3.5 py-1.5 rounded-lg border border-zinc-200 cursor-pointer transition-all self-start sm:self-center"
+                >
+                  Tampilkan Semua Karyawan
+                </button>
+              )}
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 border-b border-zinc-100 pb-4">
+              <button
+                onClick={() => setActiveAttendanceTab("present")}
+                className={`px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                  activeAttendanceTab === "present"
+                    ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                    : "bg-emerald-50/50 text-emerald-800 border-emerald-100 hover:bg-emerald-50"
+                }`}
+              >
+                <span className={`text-[10px] uppercase tracking-wider font-bold ${
+                  activeAttendanceTab === "present" ? "text-white" : "text-emerald-600"
+                }`}>Tepat Waktu</span>
+                <span className="text-3xl font-extrabold mt-1">
+                  {data.attendanceSummary.onTimeCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveAttendanceTab("late")}
+                className={`px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                  activeAttendanceTab === "late"
+                    ? "bg-amber-600 text-white border-amber-600 shadow-sm"
+                    : "bg-amber-50/50 text-amber-850 border-amber-100 hover:bg-amber-50"
+                }`}
+              >
+                <span className={`text-[10px] uppercase tracking-wider font-bold ${
+                  activeAttendanceTab === "late" ? "text-white" : "text-amber-700"
+                }`}>Terlambat</span>
+                <span className="text-3xl font-extrabold mt-1">
+                  {data.attendanceSummary.lateCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveAttendanceTab("leave")}
+                className={`px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                  activeAttendanceTab === "leave"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                    : "bg-blue-50/50 text-blue-800 border-blue-100 hover:bg-blue-50"
+                }`}
+              >
+                <span className={`text-[10px] uppercase tracking-wider font-bold ${
+                  activeAttendanceTab === "leave" ? "text-white" : "text-blue-650"
+                }`}>Cuti / Izin</span>
+                <span className="text-3xl font-extrabold mt-1">
+                  {data.attendanceSummary.leaveCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveAttendanceTab("absent")}
+                className={`px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                  activeAttendanceTab === "absent"
+                    ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                    : "bg-rose-50/50 text-rose-800 border-rose-100 hover:bg-rose-50"
+                }`}
+              >
+                <span className={`text-[10px] uppercase tracking-wider font-bold ${
+                  activeAttendanceTab === "absent" ? "text-white" : "text-rose-700"
+                }`}>Belum Absen</span>
+                <span className="text-3xl font-extrabold mt-1">
+                  {data.attendanceSummary.absentCount}
+                </span>
+              </button>
+            </div>
+
+            {/* List Karyawan */}
+            <div className="overflow-x-auto border border-zinc-150 rounded-xl shadow-sm">
+              <table className="w-full divide-y divide-zinc-150 text-left text-xs">
+                <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3.5 pl-5">Nama Karyawan</th>
+                    <th className="p-3.5">Absen Masuk</th>
+                    <th className="p-3.5">Absen Pulang</th>
+                    <th className="p-3.5 text-center">Status Kehadiran</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
+                  {data.attendanceSummary.details
+                    .filter((item: any) => {
+                      if (activeAttendanceTab === "all") return true;
+                      return item.status === activeAttendanceTab;
+                    })
+                    .map((item: any) => {
+                      return (
+                        <tr key={item.employee_id} className="hover:bg-zinc-50/30">
+                          <td className="p-3.5 pl-5 flex items-center gap-3">
+                            <div className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 font-bold text-xs overflow-hidden relative">
+                              {item.avatar_url ? (
+                                <img src={item.avatar_url} className="h-full w-full object-cover" alt={item.name} />
+                              ) : (
+                                item.name.charAt(0).toUpperCase()
+                              )}
+                            </div>
+                            <div>
+                              <div className="font-bold text-zinc-900 flex items-center gap-1.5">
+                                {item.name}
+                                {item.is_earliest && (
+                                  <span className="inline-flex items-center gap-1 bg-yellow-50 text-yellow-800 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded-md font-extrabold shadow-sm animate-pulse">
+                                    <Trophy className="h-3 w-3 text-yellow-600 fill-yellow-500 shrink-0" />
+                                    Datang Tercepat!
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-zinc-400 font-mono font-bold mt-0.5">{item.employee_code}</div>
+                            </div>
+                          </td>
+                          <td className="p-3.5 font-mono text-zinc-800 font-bold">{item.check_in}</td>
+                          <td className="p-3.5 font-mono text-zinc-800 font-bold">{item.check_out}</td>
+                          <td className="p-3.5 text-center">
+                            <span
+                              className={`inline-block text-[10px] font-extrabold px-2.5 py-1 rounded-full border uppercase tracking-wider ${
+                                item.status === "present"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                                  : item.status === "late"
+                                  ? "bg-amber-50 text-amber-700 border-amber-100"
+                                  : item.status === "leave"
+                                  ? "bg-blue-50 text-blue-700 border-blue-100"
+                                  : "bg-rose-50 text-rose-700 border-rose-100"
+                              }`}
+                            >
+                              {item.status === "late"
+                                ? `TERLAMBAT (${formatLateMinutes(item.late_minutes)})`
+                                : item.status === "leave"
+                                ? `${item.status_label}: ${item.leave_type || "Cuti"}`
+                                : item.status_label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  {data.attendanceSummary.details.filter((item: any) => {
+                    if (activeAttendanceTab === "all") return true;
+                    return item.status === activeAttendanceTab;
+                  }).length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-zinc-400 text-xs">
+                        Tidak ada karyawan dengan status ini untuk hari ini.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* 1. Summary Cards */}
         {isDashboardLoading ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -125,14 +550,14 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map((item) => (
+            {stats.map((item: any) => (
               <div
                 key={item.name}
                 className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-6 flex items-center justify-between shadow-sm"
               >
-                <div className="space-y-2">
-                  <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">{item.name}</span>
-                  <div className="text-4xl font-extrabold text-zinc-900">{item.value}</div>
+                <div className="space-y-1">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">{item.name}</span>
+                  <div className="text-3xl font-extrabold text-zinc-900 mt-1">{item.value}</div>
                 </div>
                 <div className={`p-3 rounded-xl ${item.color}`}>
                   <item.icon className="h-6 w-6" />
@@ -200,28 +625,36 @@ export default function DashboardPage() {
                           Feedback: {act.ownerFeedback}
                         </div>
                       )}
-                      <div className="flex items-center gap-2.5 mt-2.5">
-                        <span className="px-2.5 py-0.5 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-650 font-bold text-[10px] uppercase tracking-wide whitespace-nowrap">
-                          {act.categoryName}
-                        </span>
-                        <span
-                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded uppercase ${
-                            act.status === "in_progress"
-                              ? "bg-blue-50 text-blue-600 border border-blue-100"
-                              : act.status === "on_hold"
-                              ? "bg-orange-50 text-orange-600 border border-orange-150"
-                              : "bg-green-50 text-green-600 border border-green-100"
-                          }`}
-                        >
-                          {act.status.replace("_", " ")}
-                        </span>
-                        <span className="text-xs text-zinc-500 font-semibold flex items-center gap-1">
-                          <span>⏱️</span>
-                          <span>{formatActiveDuration(act.createdAt, act.completedAt, act.status, act.logs, holidaySet)}</span>
-                          {act.status === "in_progress" && (
-                            <span className="text-zinc-400 font-medium text-[9.5px]">(aktif)</span>
-                          )}
-                        </span>
+                      <div className="flex flex-col gap-1.5 mt-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className="px-2.5 py-0.5 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-650 font-bold text-[10px] uppercase tracking-wide whitespace-nowrap">
+                            {act.categoryName}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-2.5 py-0.5 rounded uppercase ${
+                              act.status === "in_progress"
+                                ? "bg-blue-50 text-blue-600 border border-blue-100"
+                                : act.status === "on_hold"
+                                ? "bg-orange-50 text-orange-600 border border-orange-150"
+                                : "bg-green-50 text-green-600 border border-green-100"
+                            }`}
+                          >
+                            {act.status.replace("_", " ")}
+                          </span>
+                          <span className="text-xs text-zinc-500 font-semibold flex items-center gap-1">
+                            <span>⏱️</span>
+                            <span>{formatActiveDuration(act.createdAt, act.completedAt, act.status, act.logs, holidaySet)}</span>
+                            {act.status === "in_progress" && (
+                              <span className="text-zinc-400 font-medium text-[9.5px]">(aktif)</span>
+                            )}
+                          </span>
+                        </div>
+                        {formatActiveOvertimeDuration(act.createdAt, act.completedAt, act.logs, holidaySet, act.holdReason) && (
+                          <div className="flex items-center gap-1 text-xs text-orange-600 font-bold">
+                            <span>🌙</span>
+                            <span>Lembur: {formatActiveOvertimeDuration(act.createdAt, act.completedAt, act.logs, holidaySet, act.holdReason)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -318,10 +751,36 @@ export default function DashboardPage() {
 
   // RENDERING TAMPILAN EMPLOYEE
   const recentActivities = employeeActivitiesData?.data || [];
-  const totalOwn = recentActivities.length;
-  const ownInProgress = recentActivities.filter((a: any) => a.status === "in_progress").length;
-  const ownOnHold = recentActivities.filter((a: any) => a.status === "on_hold").length;
-  const ownDone = recentActivities.filter((a: any) => a.status === "done").length;
+  const monthActivities = currentMonthActivities || [];
+  const totalOwn = monthActivities.length;
+  const ownInProgress = monthActivities.filter((a: any) => a.status === "in_progress").length;
+  const ownOnHold = monthActivities.filter((a: any) => a.status === "on_hold").length;
+  const ownDone = monthActivities.filter((a: any) => a.status === "done").length;
+
+  // Calculate employee monthly overtime minutes sum
+  const totalOvertimeMinutes = (currentMonthActivities || []).reduce((acc: number, act: any) => {
+    return acc + calculateOvertimeMinutes(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason);
+  }, 0);
+  const employeeOvertimeHours = Math.floor(totalOvertimeMinutes / 60);
+  const employeeOvertimeMins = totalOvertimeMinutes % 60;
+  const employeeOvertimeMinutesSumFormatted = totalOvertimeMinutes > 0
+    ? (employeeOvertimeHours > 0 ? `${employeeOvertimeHours} jam ${employeeOvertimeMins} menit` : `${employeeOvertimeMins} menit`)
+    : "0 menit";
+
+  // Hitung statistik absensi karyawan untuk bulan berjalan saat ini
+  const currentMonthStr = new Date().toISOString().slice(0, 7); // e.g. "2026-06"
+  const dashboardEmployeeGrid = isEmployee
+    ? generateMonthlyGrid(currentMonthStr, attendanceHistory?.data || [], leaveHistory?.data || [], holidaysData || [])
+    : [];
+
+  const totalPresent = dashboardEmployeeGrid.filter((d: any) => d.status === "present").length;
+  const totalLate = dashboardEmployeeGrid.filter((d: any) => d.status === "late").length;
+  const totalLeave = dashboardEmployeeGrid.filter((d: any) => ["annual_leave", "sick_leave", "permission"].includes(d.status)).length;
+  const totalAbsent = dashboardEmployeeGrid.filter((d: any) => d.status === "absent").length;
+
+  // Check if today is approved leave day
+  const isTodayOnLeave = cachedState.isLeave;
+  const showLoading = !cachedState.hasLoaded && (attendanceLoading || leaveLoading);
 
   return (
     <DashboardLayout>
@@ -332,42 +791,210 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 1. Karyawan Summary */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
-        <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-6 flex items-center justify-between shadow-sm">
-          <div className="space-y-1.5">
-            <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Aktivitas Terkini</span>
-            <div className="text-3xl font-extrabold text-zinc-900">{totalOwn}</div>
+      {/* Widget Absen Cepat Karyawan */}
+      <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-4 md:p-6 space-y-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
+              <Clock className="h-4 w-4 text-[#FF8200]" />
+              Absen Masuk & Pulang
+            </h3>
+            <p className="text-[11px] text-zinc-400 font-semibold">
+              Pastikan GPS Anda aktif dan berada di dalam radius kantor untuk menyetor kehadiran.
+            </p>
           </div>
-          <div className="p-2.5 rounded-lg bg-zinc-50 text-zinc-500">
-            <ClipboardCheck className="h-5 w-5" />
+          
+          {/* Geofence Alert */}
+          {geofences && geofences.length > 0 && (
+            <div className="bg-orange-50/50 rounded-xl p-2.5 px-4 border border-orange-100 flex items-center gap-2 text-xs text-orange-850">
+              <MapPin className="h-4 w-4 shrink-0 text-[#FF8200]" />
+              <span className="font-bold text-[11px]">
+                Radius Kantor: {geofences.map((g: any) => g.name).join(", ")}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center border border-zinc-100 rounded-2xl p-4 md:p-5 bg-zinc-50/30">
+          {/* Info Tanggal */}
+          <div className="space-y-1 md:col-span-2 md:border-r md:border-zinc-100 md:pr-4">
+            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Tanggal Hari Ini</p>
+            <p className="text-sm font-bold text-zinc-950">{formatIndonesianDate(todayStr)}</p>
+          </div>
+
+          {/* Absen Masuk Status */}
+          <div className="space-y-1 md:col-span-3 md:border-r md:border-zinc-100 md:px-4">
+            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Absen Masuk</p>
+            <div className="flex items-center gap-2">
+              <p className="text-base font-mono font-bold text-zinc-800">
+                {todayAttendance?.check_in ? todayAttendance.check_in.substring(0, 5) : "--:--"}
+              </p>
+              {todayAttendance?.status && (
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                  todayAttendance.status === "present" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-amber-50 text-amber-700 border border-amber-100"
+                }`}>
+                  {todayAttendance.status === "present" ? "Tepat Waktu" : "Terlambat"}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Absen Pulang Status */}
+          <div className="space-y-1 md:col-span-3 md:border-r md:border-zinc-100 md:px-4">
+            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Absen Pulang</p>
+            <p className="text-base font-mono font-bold text-zinc-800">
+              {todayAttendance?.check_out ? todayAttendance.check_out.substring(0, 5) : "--:--"}
+            </p>
+          </div>
+
+          {/* Tombol Absen */}
+          <div className="md:col-span-4 md:pl-4 flex justify-stretch md:justify-end">
+            <button
+              onClick={handleGPSAbsen}
+              disabled={gpsLoading || tapMutation.isPending || showLoading || (todayAttendance?.check_in && todayAttendance?.check_out) || (isTodayOnLeave && !todayAttendance?.check_in)}
+              className="w-full md:max-w-[220px] bg-[#FF8200] hover:bg-[#e07200] disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-150 disabled:shadow-none text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-orange-500/10 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap"
+            >
+              {gpsLoading || tapMutation.isPending || showLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {showLoading ? "Memuat status..." : "Memverifikasi..."}
+                </>
+              ) : isTodayOnLeave && !todayAttendance?.check_in ? (
+                <>
+                  <Ban className="h-4 w-4 text-zinc-400" />
+                  Sedang Cuti / Izin
+                </>
+              ) : todayAttendance?.check_in && todayAttendance?.check_out ? (
+                <>
+                  <CheckCircle className="h-4 w-4 text-zinc-400" />
+                  Sudah Absen Hari Ini
+                </>
+              ) : todayAttendance?.check_in ? (
+                <>
+                  <Clock className="h-4 w-4" />
+                  Absen Pulang (Clock Out)
+                </>
+              ) : (
+                <>
+                  <Clock className="h-4 w-4" />
+                  Absen Masuk (Clock In)
+                </>
+              )}
+            </button>
           </div>
         </div>
-        <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-6 flex items-center justify-between shadow-sm">
-          <div className="space-y-1.5">
-            <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">In Progress</span>
-            <div className="text-3xl font-extrabold text-blue-600">{ownInProgress}</div>
+
+        {gpsError && (
+          <div className="bg-red-50 text-red-700 text-xs font-semibold p-3 border border-red-100 rounded-xl flex items-start gap-2 max-w-xl">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-500 mt-0.5" />
+            <span>{gpsError}</span>
           </div>
-          <div className="p-2.5 rounded-lg bg-blue-50 text-blue-500">
-            <PlayCircle className="h-5 w-5" />
+        )}
+      </div>
+
+      {/* Rekap Absensi Bulan Ini */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
+          <Calendar className="h-4.5 w-4.5 text-[#FF8200]" />
+          Rekap Absensi Bulan Ini ({new Date().toLocaleDateString("id-ID", { month: "long", year: "numeric" })})
+        </h3>
+
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tepat Waktu</span>
+              <div className="text-2xl font-extrabold text-emerald-600">{totalPresent} Hari</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
+              <UserCheck className="h-5 w-5" />
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Terlambat</span>
+              <div className="text-2xl font-extrabold text-amber-600">{totalLate} Hari</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
+              <Clock className="h-5 w-5" />
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Izin & Cuti</span>
+              <div className="text-2xl font-extrabold text-blue-600">{totalLeave} Hari</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
+              <FileText className="h-5 w-5" />
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tidak Hadir</span>
+              <div className="text-2xl font-extrabold text-rose-600">{totalAbsent} Hari</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-rose-50 text-rose-600">
+              <CalendarX className="h-5 w-5" />
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Lembur</span>
+              <div className="text-2xl font-extrabold text-amber-600">{employeeOvertimeMinutesSumFormatted}</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
+              <Moon className="h-5 w-5" />
+            </div>
           </div>
         </div>
-        <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-6 flex items-center justify-between shadow-sm">
-          <div className="space-y-1.5">
-            <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">On Hold</span>
-            <div className="text-3xl font-extrabold text-orange-600">{ownOnHold}</div>
+      </div>
+
+      {/* Ringkasan Aktivitas Kerja */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
+          <ClipboardCheck className="h-4.5 w-4.5 text-[#FF8200]" />
+          Ringkasan Aktivitas Kerja Bulan Ini
+        </h3>
+
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
+          <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-6 flex items-center justify-between shadow-sm">
+            <div className="space-y-1.5">
+              <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Aktivitas Terkini</span>
+              <div className="text-3xl font-extrabold text-zinc-900">{totalOwn}</div>
+            </div>
+            <div className="p-2.5 rounded-lg bg-zinc-50 text-zinc-500">
+              <ClipboardCheck className="h-5 w-5" />
+            </div>
           </div>
-          <div className="p-2.5 rounded-lg bg-orange-50 text-orange-500">
-            <PauseCircle className="h-5 w-5" />
+          <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-6 flex items-center justify-between shadow-sm">
+            <div className="space-y-1.5">
+              <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">In Progress</span>
+              <div className="text-3xl font-extrabold text-blue-600">{ownInProgress}</div>
+            </div>
+            <div className="p-2.5 rounded-lg bg-blue-50 text-blue-500">
+              <PlayCircle className="h-5 w-5" />
+            </div>
           </div>
-        </div>
-        <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-6 flex items-center justify-between shadow-sm">
-          <div className="space-y-1.5">
-            <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Done</span>
-            <div className="text-3xl font-extrabold text-green-600">{ownDone}</div>
+          <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-6 flex items-center justify-between shadow-sm">
+            <div className="space-y-1.5">
+              <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">On Hold</span>
+              <div className="text-3xl font-extrabold text-orange-600">{ownOnHold}</div>
+            </div>
+            <div className="p-2.5 rounded-lg bg-orange-50 text-orange-500">
+              <PauseCircle className="h-5 w-5" />
+            </div>
           </div>
-          <div className="p-2.5 rounded-lg bg-green-50 text-green-500">
-            <CheckCircle2 className="h-5 w-5" />
+          <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-6 flex items-center justify-between shadow-sm">
+            <div className="space-y-1.5">
+              <span className="text-sm font-bold text-zinc-400 uppercase tracking-wider">Done</span>
+              <div className="text-3xl font-extrabold text-green-600">{ownDone}</div>
+            </div>
+            <div className="p-2.5 rounded-lg bg-green-50 text-green-500">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
           </div>
         </div>
       </div>
@@ -448,11 +1075,19 @@ export default function DashboardPage() {
                       >
                         {act.status.replace("_", " ")}
                       </span>
-                      <div className="text-xs text-zinc-505 font-semibold mt-1.5 flex items-center gap-1">
-                        <span>⏱️</span>
-                        <span>{formatActiveDuration(act.created_at, act.completed_at, act.status, act.logs, holidaySet)}</span>
-                        {act.status === "in_progress" && (
-                          <span className="text-zinc-400 font-medium text-[9.5px]">(aktif)</span>
+                      <div className="text-xs text-zinc-505 font-medium mt-1.5 space-y-1">
+                        <div className="flex items-center gap-1">
+                          <span>⏱️</span>
+                          <span>{formatActiveDuration(act.created_at, act.completed_at, act.status, act.logs, holidaySet)}</span>
+                          {act.status === "in_progress" && (
+                            <span className="text-zinc-400 font-medium text-[9.5px]">(aktif)</span>
+                          )}
+                        </div>
+                        {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason) && (
+                          <div className="flex items-center gap-1 text-orange-600 font-bold">
+                            <span>🌙</span>
+                            <span>Lembur: {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason)}</span>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -476,6 +1111,15 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Custom Alert Modal */}
+      <AlertModal
+        isOpen={alertConfig.isOpen}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        variant={alertConfig.variant}
+      />
     </DashboardLayout>
   );
 }

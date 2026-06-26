@@ -16,6 +16,62 @@ use Illuminate\Validation\ValidationException;
 class ActivityService
 {
     /**
+     * Deteksi & pause otomatis untuk aktivitas in_progress yang melampaui batas operasional / lembur.
+     */
+    public function autoPauseActivities(): void
+    {
+        $holidayDates = \App\Models\Holiday::pluck('date')->toArray();
+        $now = Carbon::now('Asia/Jakarta');
+
+        // Cleanup: Kembalikan tugas yang sebelumnya di-pause otomatis oleh sistem ke in_progress
+        $autoPausedActivities = Activity::where('status', ActivityStatusEnum::ON_HOLD->value)
+            ->where('hold_reason', 'Auto-pause jam pulang kantor')
+            ->get();
+
+        foreach ($autoPausedActivities as $activity) {
+            DB::transaction(function () use ($activity) {
+                DB::table('activities')->where('id', $activity->id)->update([
+                    'status' => ActivityStatusEnum::IN_PROGRESS->value,
+                    'hold_reason' => null,
+                ]);
+
+                // Hapus log on_hold terakhir untuk mengaktifkan kembali log in_progress sebelumnya
+                $lastOnHoldLog = DB::table('activity_logs')
+                    ->where('activity_id', $activity->id)
+                    ->where('status', ActivityStatusEnum::ON_HOLD->value)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                if ($lastOnHoldLog) {
+                    DB::table('activity_logs')->where('id', $lastOnHoldLog->id)->delete();
+                }
+            });
+        }
+
+
+    }
+
+    private function isOutsideOperationalHours(Carbon $time, array $holidayDates): bool
+    {
+        $dayOfWeek = $time->dayOfWeek;
+        $dateStr = $time->toDateString();
+
+        if ($dayOfWeek === 0) { // Minggu
+            return true;
+        }
+        if (in_array($dateStr, $holidayDates)) {
+            return true;
+        }
+
+        $hour = $time->hour;
+        if ($dayOfWeek === 6) { // Sabtu
+            return $hour >= 12;
+        }
+
+        return $hour >= 17;
+    }
+
+    /**
      * Mengambil daftar aktivitas berdasarkan role dan filter yang diberikan.
      * 
      * @param User $user User yang mengakses
@@ -24,6 +80,8 @@ class ActivityService
      */
     public function getActivities(User $user, array $filters): LengthAwarePaginator
     {
+        $this->autoPauseActivities();
+
         $query = Activity::with(['user', 'category', 'logs.changedByUser'])
             ->latest('updated_at');
 

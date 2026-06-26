@@ -11,7 +11,7 @@ import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import api from "@/lib/api";
 
 const loginSchema = z.object({
-  email: z.string().min(1, "Email wajib diisi").email("Format email tidak valid"),
+  email: z.string().min(1, "Email atau Employee ID wajib diisi"),
   password: z.string().min(8, "Password minimal harus 8 karakter"),
 });
 
@@ -166,17 +166,17 @@ export default function LoginPage() {
             {/* Email Input */}
             <div className="space-y-2">
               <label htmlFor="email" className="block text-xs font-semibold text-zinc-600">
-                Alamat Email
+                Email atau Employee ID
               </label>
               <input
                 {...register("email")}
                 id="email"
-                type="email"
+                type="text"
                 suppressHydrationWarning
                 className={`block w-full rounded-xl border bg-zinc-50/50 px-3.5 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-[#FF8200] ${
                   errors.email ? "border-red-300 focus:ring-red-500/20" : "border-zinc-200"
                 }`}
-                placeholder="nama@omfai.com"  
+                placeholder="nama@omfai.com atau 2026062401"  
               />
               {errors.email && (
                 <p className="mt-1 text-xs text-red-600 font-semibold">{errors.email.message}</p>

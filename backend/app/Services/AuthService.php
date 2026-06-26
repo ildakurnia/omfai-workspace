@@ -17,11 +17,21 @@ class AuthService
      */
     public function login(array $credentials): array
     {
-        $user = User::where('email', $credentials['email'])->first();
+        $loginInput = $credentials['email'];
+
+        // Coba cari berdasarkan email terlebih dahulu
+        $user = User::where('email', $loginInput)->first();
+
+        // Jika tidak ditemukan, coba cari berdasarkan employee_code (Employee ID)
+        if (!$user) {
+            $user = User::whereHas('employee', function ($query) use ($loginInput) {
+                $query->where('employee_code', $loginInput);
+            })->first();
+        }
 
         if (!$user || !Hash::check($credentials['password'], $user['password'])) {
             throw ValidationException::withMessages([
-                'email' => ['Email atau password yang Anda masukkan salah.'],
+                'email' => ['Email, Employee ID, atau password yang Anda masukkan salah.'],
             ]);
         }
 
@@ -40,6 +50,13 @@ class AuthService
                 'avatar_url' => $user['avatar'] ? asset('storage/' . $user['avatar']) : null,
                 'roles' => $roles,
                 'created_at' => $user['created_at'] ? $user['created_at']->toIso8601String() : null,
+                'employee' => $user->employee ? [
+                    'id' => $user->employee->id,
+                    'employee_code' => $user->employee->employee_code,
+                    'joined_at' => $user->employee->joined_at,
+                    'whatsapp_number' => $user->employee->whatsapp_number,
+                    'leave_balance' => $user->employee->leave_balance,
+                ] : null,
             ],
             'access_token' => $token,
             'token_type' => 'Bearer',

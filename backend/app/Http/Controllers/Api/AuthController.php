@@ -29,7 +29,7 @@ class AuthController extends Controller
     public function login(Request $request): JsonResponse
     {
         $credentials = $request->validate([
-            'email' => 'required|email',
+            'email' => 'required|string',
             'password' => 'required|string',
         ]);
 
@@ -76,6 +76,13 @@ class AuthController extends Controller
                 'avatar_url' => $user['avatar'] ? asset('storage/' . $user['avatar']) : null,
                 'roles' => $user->getRoleNames(),
                 'created_at' => $user['created_at'] ? $user['created_at']->toIso8601String() : null,
+                'employee' => $user->employee ? [
+                    'id' => $user->employee->id,
+                    'employee_code' => $user->employee->employee_code,
+                    'joined_at' => $user->employee->joined_at,
+                    'whatsapp_number' => $user->employee->whatsapp_number,
+                    'leave_balance' => $user->employee->leave_balance,
+                ] : null,
             ],
         ]);
     }
