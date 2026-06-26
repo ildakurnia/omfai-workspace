@@ -25,6 +25,27 @@ class Employee extends Model
     ];
 
     /**
+     * Recalculate employee codes for all employees sorted by join date.
+     */
+    public static function recalculateEmployeeCodes()
+    {
+        $employees = self::orderBy('joined_at', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
+            
+        foreach ($employees as $index => $employee) {
+            $datePrefix = Carbon::parse($employee->joined_at)->format('Ymd');
+            $sequence = str_pad($index + 1, 2, '0', STR_PAD_LEFT);
+            $newCode = $datePrefix . $sequence;
+            
+            if ($employee->employee_code !== $newCode) {
+                $employee->employee_code = $newCode;
+                $employee->saveQuietly();
+            }
+        }
+    }
+
+    /**
      * Boot function for model events.
      */
     protected static function boot()
@@ -34,13 +55,25 @@ class Employee extends Model
         static::creating(function ($employee) {
             if (empty($employee->employee_code)) {
                 $datePrefix = Carbon::parse($employee->joined_at)->format('Ymd');
-                
-                // Count employees who joined on the exact same day to calculate NN sequence
-                $count = static::whereDate('joined_at', $employee->joined_at)->count();
-                $sequence = str_pad($count + 1, 2, '0', STR_PAD_LEFT);
-                
-                $employee->employee_code = $datePrefix . $sequence;
+                // Temporary unique code to satisfy NOT NULL constraint before recalculation
+                $employee->employee_code = $datePrefix . 'temp' . uniqid();
             }
+        });
+
+        static::created(function ($employee) {
+            static::recalculateEmployeeCodes();
+            $employee->refresh();
+        });
+
+        static::updated(function ($employee) {
+            if ($employee->isDirty('joined_at')) {
+                static::recalculateEmployeeCodes();
+                $employee->refresh();
+            }
+        });
+
+        static::deleted(function ($employee) {
+            static::recalculateEmployeeCodes();
         });
     }
 

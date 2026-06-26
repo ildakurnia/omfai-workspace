@@ -259,7 +259,7 @@ class LeaveRequestTest extends TestCase
             'leave_balance' => 12,
         ]);
 
-        $this->assertEquals('2026081501', $employee->employee_code);
+        $this->assertEquals('2026081503', $employee->employee_code);
 
         // Create another employee on the same day
         $employeeUser2 = User::factory()->create();
@@ -273,7 +273,7 @@ class LeaveRequestTest extends TestCase
             'leave_balance' => 12,
         ]);
 
-        $this->assertEquals('2026081502', $employee2->employee_code);
+        $this->assertEquals('2026081504', $employee2->employee_code);
     }
 
     /**

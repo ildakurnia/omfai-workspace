@@ -26,6 +26,7 @@ class UserController extends Controller
      */
     public function index(): JsonResponse
     {
+        \App\Models\Employee::recalculateEmployeeCodes();
         $users = $this->userService->getAllUsers();
 
         return response()->json([
