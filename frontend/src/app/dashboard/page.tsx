@@ -24,7 +24,6 @@ import {
   FileText,
   CalendarX,
   Ban,
-  Moon,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import api from "@/lib/api";
@@ -899,7 +898,7 @@ export default function DashboardPage() {
           Rekap Absensi Bulan Ini ({new Date().toLocaleDateString("id-ID", { month: "long", year: "numeric" })})
         </h3>
 
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
             <div className="space-y-1.5">
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tepat Waktu</span>
@@ -937,16 +936,6 @@ export default function DashboardPage() {
             </div>
             <div className="p-2.5 rounded-xl bg-rose-50 text-rose-600">
               <CalendarX className="h-5 w-5" />
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Lembur</span>
-              <div className="text-2xl font-extrabold text-amber-600">{employeeOvertimeMinutesSumFormatted}</div>
-            </div>
-            <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
-              <Moon className="h-5 w-5" />
             </div>
           </div>
         </div>
