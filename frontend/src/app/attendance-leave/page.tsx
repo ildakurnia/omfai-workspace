@@ -471,6 +471,20 @@ export default function AttendanceLeavePage() {
     },
   });
 
+  // Mutation: Cancel Leave Request (Employee Only)
+  const cancelLeaveMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return (await api.post(`/ajukan-cuti/${id}/cancel`)).data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leaveHistory"] });
+      showAlert("Pengajuan berhasil dibatalkan.", "success", "Pembatalan Berhasil");
+    },
+    onError: (err: any) => {
+      showAlert(err.response?.data?.message || "Gagal membatalkan pengajuan.", "error", "Pembatalan Gagal");
+    },
+  });
+
   // Trigger GPS Absen Masuk/Pulang
   const handleGPSAbsen = () => {
     setGpsLoading(true);
@@ -1717,16 +1731,40 @@ export default function AttendanceLeavePage() {
                             <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
                             <td className="p-3 text-zinc-500 font-semibold">{start} s/d {end}</td>
                             <td className="p-3 text-zinc-650 max-w-[300px] truncate" title={item.reason}>{item.reason}</td>
-                            <td className="p-3 text-center">
-                              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                                item.status === "approved"
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                                  : item.status === "rejected"
-                                  ? "bg-rose-50 text-rose-700 border border-rose-100"
-                                  : "bg-amber-50 text-amber-700 border border-amber-100"
-                              }`}>
-                                {item.status.toUpperCase()}
-                              </span>
+                             <td className="p-3 text-center">
+                               <div className="flex flex-col items-center gap-1.5 justify-center">
+                                 <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                                   item.status === "approved"
+                                     ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                     : item.status === "rejected"
+                                     ? "bg-rose-50 text-rose-700 border border-rose-100"
+                                     : item.status === "cancelled"
+                                     ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
+                                     : "bg-amber-50 text-amber-700 border border-amber-100"
+                                 }`}>
+                                   {item.status === "approved"
+                                     ? "DISETUJUI"
+                                     : item.status === "rejected"
+                                     ? "DITOLAK"
+                                     : item.status === "cancelled"
+                                     ? "DIBATALKAN"
+                                     : "DIPROSES"}
+                                 </span>
+                                 {item.status === "pending" && (
+                                   <button
+                                     onClick={() => showConfirm(
+                                       "Apakah Anda yakin ingin membatalkan pengajuan ini?",
+                                       () => cancelLeaveMutation.mutate(item.id),
+                                       "danger",
+                                       "Konfirmasi Pembatalan"
+                                     )}
+                                     disabled={cancelLeaveMutation.isPending}
+                                     className="text-[9px] font-bold text-rose-650 hover:text-rose-800 border border-rose-150 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded cursor-pointer transition-all"
+                                   >
+                                     Batalkan
+                                   </button>
+                                 )}
+                               </div>
                               {item.rejection_reason && (
                                 <p className="text-[9px] text-rose-600 mt-1 font-semibold">Alasan: {item.rejection_reason}</p>
                               )}

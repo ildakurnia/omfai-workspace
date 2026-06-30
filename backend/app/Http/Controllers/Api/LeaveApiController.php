@@ -200,4 +200,56 @@ class LeaveApiController extends Controller
             'data' => $history
         ]);
     }
+
+    /**
+     * Cancel a pending leave request.
+     */
+    public function cancel($id)
+    {
+        $user = Auth::user();
+        $employee = $user->employee;
+
+        if (!$employee) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee profile not found.'
+            ], 404);
+        }
+
+        $leaveRequest = LeaveRequest::find($id);
+
+        if (!$leaveRequest) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengajuan cuti/izin tidak ditemukan.'
+            ], 404);
+        }
+
+        // Verify ownership
+        if ($leaveRequest->employee_id !== $employee->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki otoritas untuk membatalkan pengajuan ini.'
+            ], 403);
+        }
+
+        // Only allow cancellation of pending requests
+        if ($leaveRequest->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengajuan tidak dapat dibatalkan karena sudah diproses (Status: ' . $leaveRequest->status . ').'
+            ], 422);
+        }
+
+        // Update status to cancelled
+        $leaveRequest->update([
+            'status' => 'cancelled'
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pengajuan cuti/izin berhasil dibatalkan.',
+            'data' => $leaveRequest
+        ]);
+    }
 }
