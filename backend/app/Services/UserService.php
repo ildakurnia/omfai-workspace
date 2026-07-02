@@ -15,7 +15,7 @@ class UserService
      */
     public function getAllUsers(): Collection
     {
-        return User::with(['roles', 'employee.attendances', 'employee.leaveRequests'])->get();
+        return User::with(['roles', 'employee.attendances', 'employee.leaveRequests', 'employee.workHourPermissions'])->get();
     }
 
     /**

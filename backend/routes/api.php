@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\AttendanceApiController;
 use App\Http\Controllers\Api\LeaveApiController;
 use App\Http\Controllers\Api\LeaveApprovalController;
 use App\Http\Controllers\Api\GeofenceApiController;
+use App\Http\Controllers\Api\WorkHourPermissionController;
 use Illuminate\Support\Facades\Route;
 
 // Public route
@@ -74,6 +75,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/history-cuti', [LeaveApiController::class, 'history']);
     Route::post('/ajukan-cuti/{id}/cancel', [LeaveApiController::class, 'cancel']);
 
+    // Work Hour Permission Module
+    Route::post('/work-hour-permissions', [WorkHourPermissionController::class, 'store']);
+    Route::get('/work-hour-permissions', [WorkHourPermissionController::class, 'history']);
+    Route::post('/work-hour-permissions/{id}/cancel', [WorkHourPermissionController::class, 'cancel']);
+
     // Leave Approvals & Geofence Settings (Owner & Admin only)
     Route::middleware('role:Owner|Admin')->group(function () {
         Route::get('/leave-requests', [LeaveApprovalController::class, 'index']);
@@ -81,6 +87,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/leave-requests/{id}/reject', [LeaveApprovalController::class, 'reject']);
         Route::delete('/leave-requests/{id}', [LeaveApprovalController::class, 'destroy']);
         Route::delete('/attendances/{id}', [AttendanceApiController::class, 'destroy'])->middleware('role:Admin');
+
+        // Work Hour Permission Approvals
+        Route::get('/admin/work-hour-permissions', [WorkHourPermissionController::class, 'index']);
+        Route::post('/admin/work-hour-permissions/{id}/approve', [WorkHourPermissionController::class, 'approve']);
+        Route::post('/admin/work-hour-permissions/{id}/reject', [WorkHourPermissionController::class, 'reject']);
+        Route::delete('/admin/work-hour-permissions/{id}', [WorkHourPermissionController::class, 'destroy']);
 
         // Geofence Management
         Route::post('/geofences', [GeofenceApiController::class, 'store']);

@@ -58,6 +58,17 @@ export default function AttendanceLeavePage() {
   const [rejectionId, setRejectionId] = useState<number | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectionError, setRejectionError] = useState<string | null>(null);
+  const [rejectionType, setRejectionType] = useState<"leave" | "work_hour">("leave");
+
+  // Work hour permission states
+  const [isWorkHourModalOpen, setIsWorkHourModalOpen] = useState(false);
+  const [workHourType, setWorkHourType] = useState<"out_temporary" | "arrive_late" | "leave_early">("out_temporary");
+  const [workHourDate, setWorkHourDate] = useState("");
+  const [workHourStartTime, setWorkHourStartTime] = useState("");
+  const [workHourEndTime, setWorkHourEndTime] = useState("");
+  const [workHourReason, setWorkHourReason] = useState("");
+  const [workHourAttachment, setWorkHourAttachment] = useState<File | null>(null);
+  const [historyActiveTab, setHistoryActiveTab] = useState<"leave" | "work_hour">("leave");
   
   // Absen submission GPS loading/error states
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -197,6 +208,16 @@ export default function AttendanceLeavePage() {
     enabled: isEmployee,
   });
 
+  // Fetch logged in employee work hour permissions history
+  const { data: workHourPermissions, isLoading: workHourPermissionsLoading } = useQuery({
+    queryKey: ["workHourPermissionsHistory"],
+    queryFn: async () => {
+      const res = await api.get("/work-hour-permissions");
+      return res.data;
+    },
+    enabled: isEmployee,
+  });
+
   // Cache state to prevent layout flashes
   const todayStr = toLocalDateString(now);
   const [cachedState, setCachedState] = useState<{
@@ -316,6 +337,16 @@ export default function AttendanceLeavePage() {
     queryKey: ["allLeaveRequestsList"],
     queryFn: async () => {
       const res = await api.get("/leave-requests");
+      return res.data.data || [];
+    },
+    enabled: isAdmin || isOwner,
+  });
+
+  // Fetch ALL work hour permissions for Owner/Admin approval
+  const { data: allWorkHourPermissions, isLoading: allWorkHourPermissionsLoading } = useQuery({
+    queryKey: ["allWorkHourPermissionsList"],
+    queryFn: async () => {
+      const res = await api.get("/admin/work-hour-permissions");
       return res.data.data || [];
     },
     enabled: isAdmin || isOwner,
@@ -485,6 +516,113 @@ export default function AttendanceLeavePage() {
     },
   });
 
+  // Mutation: Submit Work Hour Permission
+  const submitWorkHourPermissionMutation = useMutation({
+    mutationFn: async (payload: {
+      type: string;
+      date: string;
+      start_time: string;
+      end_time: string;
+      reason: string;
+      attachment: File | null;
+    }) => {
+      const formData = new FormData();
+      formData.append("type", payload.type);
+      formData.append("date", payload.date);
+      if (payload.start_time) formData.append("start_time", payload.start_time);
+      if (payload.end_time) formData.append("end_time", payload.end_time);
+      formData.append("reason", payload.reason);
+      if (payload.attachment) {
+        formData.append("attachment", payload.attachment);
+      }
+
+      const res = await api.post("/work-hour-permissions", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      setWorkHourDate("");
+      setWorkHourStartTime("");
+      setWorkHourEndTime("");
+      setWorkHourReason("");
+      setWorkHourAttachment(null);
+      queryClient.invalidateQueries({ queryKey: ["workHourPermissionsHistory"] });
+      setIsWorkHourModalOpen(false);
+      showAlert("Pengajuan izin jam kerja berhasil dikirim.", "success", "Pengajuan Dikirim");
+    },
+    onError: (err: any) => {
+      showAlert(err.response?.data?.message || "Gagal mengirim pengajuan.", "error", "Gagal Mengirim");
+    },
+  });
+
+  // Mutation: Cancel Work Hour Permission (Employee Only)
+  const cancelWorkHourPermissionMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return (await api.post(`/work-hour-permissions/${id}/cancel`)).data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workHourPermissionsHistory"] });
+      showAlert("Pengajuan izin jam kerja berhasil dibatalkan.", "success", "Pembatalan Berhasil");
+    },
+    onError: (err: any) => {
+      showAlert(err.response?.data?.message || "Gagal membatalkan pengajuan.", "error", "Pembatalan Gagal");
+    },
+  });
+
+  // Mutation: Approve Work Hour Permission (Owner/Admin)
+  const approveWorkHourPermissionMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return (await api.post(`/admin/work-hour-permissions/${id}/approve`)).data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["allWorkHourPermissionsList"] });
+      queryClient.invalidateQueries({ queryKey: ["employeesListForReports"] });
+      queryClient.invalidateQueries({ queryKey: ["adminSelectedEmpAttendance"] });
+      queryClient.invalidateQueries({ queryKey: ["attendanceHistory"] });
+      showAlert("Pengajuan izin jam kerja disetujui.", "success", "Persetujuan Berhasil");
+    },
+    onError: (err: any) => {
+      showAlert(err.response?.data?.message || "Gagal menyetujui pengajuan.", "error", "Persetujuan Gagal");
+    },
+  });
+
+  // Mutation: Reject Work Hour Permission (Owner/Admin)
+  const rejectWorkHourPermissionMutation = useMutation({
+    mutationFn: async (payload: { id: number; reason: string }) => {
+      return (await api.post(`/admin/work-hour-permissions/${payload.id}/reject`, {
+        rejection_reason: payload.reason,
+      })).data;
+    },
+    onSuccess: () => {
+      setIsRejectionModalOpen(false);
+      setRejectionReason("");
+      setRejectionId(null);
+      queryClient.invalidateQueries({ queryKey: ["allWorkHourPermissionsList"] });
+      showAlert("Pengajuan izin jam kerja ditolak.", "success", "Penolakan Berhasil");
+    },
+    onError: (err: any) => {
+      setRejectionError(err.response?.data?.message || "Gagal menolak pengajuan.");
+    },
+  });
+
+  // Mutation: Delete/Reset Work Hour Permission (Owner/Admin)
+  const deleteWorkHourPermissionMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return (await api.delete(`/admin/work-hour-permissions/${id}`)).data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["allWorkHourPermissionsList"] });
+      queryClient.invalidateQueries({ queryKey: ["adminSelectedEmpAttendance"] });
+      showAlert("Pengajuan izin jam kerja berhasil dihapus/reset.", "success", "Reset Berhasil");
+    },
+    onError: (err: any) => {
+      showAlert(err.response?.data?.message || "Gagal menghapus/reset pengajuan.", "error", "Reset Gagal");
+    },
+  });
+
   // Trigger GPS Absen Masuk/Pulang
   const handleGPSAbsen = () => {
     setGpsLoading(true);
@@ -533,7 +671,8 @@ export default function AttendanceLeavePage() {
     setIsLeaveModalOpen(true);
   };
 
-  const handleOpenRejectModal = (id: number) => {
+  const handleOpenRejectModal = (id: number, type: "leave" | "work_hour" = "leave") => {
+    setRejectionType(type);
     setRejectionId(id);
     setRejectionReason("");
     setRejectionError(null);
@@ -546,7 +685,11 @@ export default function AttendanceLeavePage() {
       return;
     }
     if (rejectionId) {
-      rejectLeaveMutation.mutate({ id: rejectionId, reason: rejectionReason });
+      if (rejectionType === "leave") {
+        rejectLeaveMutation.mutate({ id: rejectionId, reason: rejectionReason });
+      } else {
+        rejectWorkHourPermissionMutation.mutate({ id: rejectionId, reason: rejectionReason });
+      }
     }
   };
 
@@ -651,7 +794,7 @@ export default function AttendanceLeavePage() {
   };
 
   // Helper: Generate all days of selected month and map them to their statuses
-  const generateMonthlyGrid = (monthStr: string, attendances: any[], leaves: any[]) => {
+  const generateMonthlyGrid = (monthStr: string, attendances: any[], leaves: any[], whPermissions: any[] = []) => {
     if (!monthStr) return [];
     const [year, month] = monthStr.split("-").map(Number);
     const date = new Date(year, month - 1, 1);
@@ -676,6 +819,11 @@ export default function AttendanceLeavePage() {
         return dayStr >= l.start_date && dayStr <= l.end_date && l.status === "approved";
       });
 
+      // Check approved work hour permissions matching this day
+      const whPermission = (whPermissions || []).find((w: any) => {
+        return w.date === dayStr && w.status === "approved";
+      });
+
       let status = "-";
       let checkIn = "-";
       let checkOut = "-";
@@ -692,6 +840,7 @@ export default function AttendanceLeavePage() {
       if (attendance) {
         checkIn = attendance.check_in ? attendance.check_in.substring(0, 5) : "-";
         checkOut = attendance.check_out ? attendance.check_out.substring(0, 5) : "-";
+        
         if (attendance.status === "present") {
           status = "present";
           statusLabel = "Hadir";
@@ -701,10 +850,36 @@ export default function AttendanceLeavePage() {
           statusLabel = "Terlambat";
           colorClass = "text-amber-700 bg-amber-50 border-amber-100";
         }
+
+        // Apply work hour permission labels if approved
+        if (whPermission) {
+          if (whPermission.type === "arrive_late" && attendance.status === "late") {
+            statusLabel = "Terlambat (Izin Disetujui)";
+            colorClass = "text-amber-800 bg-amber-50/70 border-amber-200";
+          } else if (whPermission.type === "leave_early") {
+            statusLabel = "Pulang Cepat (Izin Disetujui)";
+            colorClass = "text-indigo-700 bg-indigo-50 border-indigo-100";
+          } else if (whPermission.type === "out_temporary") {
+            statusLabel = `${statusLabel} (Keluar Sementara)`;
+            colorClass = "text-purple-700 bg-purple-50 border-purple-100";
+          }
+        }
       } else if (leave) {
         status = leave.type;
         statusLabel = leave.type === "annual_leave" ? "Cuti" : leave.type === "sick_leave" ? "Sakit" : "Izin";
         colorClass = leave.type === "sick_leave" ? "text-red-750 bg-red-50 border-red-100" : "text-blue-700 bg-blue-50 border-blue-100";
+      } else if (whPermission && whPermission.type === "leave_early") {
+        status = "leave_early";
+        statusLabel = "Pulang Cepat (Izin Disetujui)";
+        colorClass = "text-indigo-700 bg-indigo-50 border-indigo-100";
+      } else if (whPermission && whPermission.type === "arrive_late") {
+        status = "arrive_late";
+        statusLabel = "Terlambat (Izin Disetujui)";
+        colorClass = "text-amber-800 bg-amber-50/70 border-amber-200";
+      } else if (whPermission && whPermission.type === "out_temporary") {
+        status = "out_temporary";
+        statusLabel = "Hadir (Keluar Sementara)";
+        colorClass = "text-purple-700 bg-purple-50 border-purple-100";
       } else if (isSunday) {
         status = "weekend";
         statusLabel = "Libur Akhir Pekan";
@@ -739,6 +914,7 @@ export default function AttendanceLeavePage() {
         colorClass,
         attendanceId: attendance ? attendance.id : null,
         leaveId: leave ? leave.id : null,
+        whPermissionId: whPermission ? whPermission.id : null,
         isPast,
         isToday,
       };
@@ -747,22 +923,52 @@ export default function AttendanceLeavePage() {
 
   // Generate grid for Employee
   const employeeGrid = isEmployee 
-    ? generateMonthlyGrid(selectedMonth, attendanceHistory?.data || [], leaveHistory?.data || []) 
+    ? generateMonthlyGrid(selectedMonth, attendanceHistory?.data || [], leaveHistory?.data || [], workHourPermissions?.data || []) 
     : [];
 
-  const totalPresent = employeeGrid.filter((d: any) => d.status === "present").length;
-  const totalLate = employeeGrid.filter((d: any) => d.status === "late").length;
-  const totalLeave = employeeGrid.filter((d: any) => ["annual_leave", "sick_leave", "permission"].includes(d.status)).length;
+  const totalPresent = employeeGrid.filter((d: any) => 
+    d.status === "present" || 
+    d.status === "leave_early" || 
+    d.status === "out_temporary" || 
+    d.statusLabel.startsWith("Hadir") || 
+    d.statusLabel.startsWith("Pulang Cepat")
+  ).length;
+
+  const totalLate = employeeGrid.filter((d: any) => 
+    d.status === "late" || 
+    d.status === "arrive_late" || 
+    d.statusLabel.startsWith("Terlambat")
+  ).length;
+
+  const totalLeave = employeeGrid.filter((d: any) => 
+    ["annual_leave", "sick_leave", "permission"].includes(d.status)
+  ).length;
+
   const totalAbsent = employeeGrid.filter((d: any) => d.status === "absent").length;
 
   // Generate grid for admin report view
   const adminSelectedGrid = (isAdmin || isOwner) && adminSelectedEmpAttendance
-    ? generateMonthlyGrid(selectedMonth, adminSelectedEmpAttendance.employee?.attendances || [], adminSelectedEmpAttendance.employee?.leave_requests || [])
+    ? generateMonthlyGrid(selectedMonth, adminSelectedEmpAttendance.employee?.attendances || [], adminSelectedEmpAttendance.employee?.leave_requests || [], adminSelectedEmpAttendance.employee?.work_hour_permissions || [])
     : [];
 
-  const adminTotalPresent = adminSelectedGrid.filter((d: any) => d.status === "present").length;
-  const adminTotalLate = adminSelectedGrid.filter((d: any) => d.status === "late").length;
-  const adminTotalLeave = adminSelectedGrid.filter((d: any) => ["annual_leave", "sick_leave", "permission"].includes(d.status)).length;
+  const adminTotalPresent = adminSelectedGrid.filter((d: any) => 
+    d.status === "present" || 
+    d.status === "leave_early" || 
+    d.status === "out_temporary" || 
+    d.statusLabel.startsWith("Hadir") || 
+    d.statusLabel.startsWith("Pulang Cepat")
+  ).length;
+
+  const adminTotalLate = adminSelectedGrid.filter((d: any) => 
+    d.status === "late" || 
+    d.status === "arrive_late" || 
+    d.statusLabel.startsWith("Terlambat")
+  ).length;
+
+  const adminTotalLeave = adminSelectedGrid.filter((d: any) => 
+    ["annual_leave", "sick_leave", "permission"].includes(d.status)
+  ).length;
+
   const adminTotalAbsent = adminSelectedGrid.filter((d: any) => d.status === "absent").length;
 
   const totalAdminOvertimeMinutes = React.useMemo(() => {
@@ -921,9 +1127,29 @@ export default function AttendanceLeavePage() {
                     />
                   </div>
 
+                  {/* Tombol Ajukan Izin Jam Kerja */}
+                  <button
+                    onClick={() => {
+                      const todayString = new Date().toLocaleDateString("en-CA");
+                      setWorkHourDate(todayString);
+                      setWorkHourStartTime("");
+                      setWorkHourEndTime("");
+                      setWorkHourReason("");
+                      setWorkHourAttachment(null);
+                      setIsWorkHourModalOpen(true);
+                    }}
+                    className="bg-white hover:bg-zinc-50 text-zinc-700 text-xs font-bold px-3.5 py-2 rounded-lg border border-zinc-200 cursor-pointer transition-all flex items-center gap-1.5"
+                  >
+                    <Clock className="h-3.5 w-3.5 text-[#FF8200]" />
+                    Izin Jam Kerja
+                  </button>
+
                   {/* Tombol Riwayat Cuti */}
                   <button
-                    onClick={() => setIsLeaveHistoryModalOpen(true)}
+                    onClick={() => {
+                      setHistoryActiveTab("leave");
+                      setIsLeaveHistoryModalOpen(true);
+                    }}
                     className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold px-3.5 py-2 rounded-lg border border-zinc-200 cursor-pointer transition-all flex items-center gap-1.5"
                   >
                     <FileText className="h-3.5 w-3.5" />
@@ -1116,6 +1342,98 @@ export default function AttendanceLeavePage() {
                                   </button>
                                   <button
                                     onClick={() => handleOpenRejectModal(item.id)}
+                                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold cursor-pointer transition-all"
+                                  >
+                                    <Ban className="h-3 w-3" />
+                                    Tolak
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Panel Approval Izin Jam Kerja (Work Hour Permission Approval) */}
+            <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-4">
+              <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-blue-600" />
+                Persetujuan Izin Jam Kerja Karyawan (Pending)
+              </h3>
+              <div className="overflow-x-auto">
+                {allWorkHourPermissionsLoading ? (
+                  <div className="p-8 flex justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  </div>
+                ) : !allWorkHourPermissions || allWorkHourPermissions.filter((r: any) => r.status === "pending").length === 0 ? (
+                  <div className="text-center py-8 text-zinc-400 text-xs">
+                    Tidak ada pengajuan izin jam kerja pending saat ini.
+                  </div>
+                ) : (
+                  <table className="w-full divide-y divide-zinc-150 text-left text-xs">
+                    <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider">
+                      <tr>
+                        <th className="p-3.5">Karyawan (ID)</th>
+                        <th className="p-3.5">Tipe Izin</th>
+                        <th className="p-3.5">Tanggal & Jam</th>
+                        <th className="p-3.5">Alasan</th>
+                        <th className="p-3.5 text-center">Lampiran</th>
+                        <th className="p-3.5 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 font-medium">
+                      {allWorkHourPermissions
+                        .filter((r: any) => r.status === "pending")
+                        .map((item: any) => {
+                          const typeLabel = item.type === "out_temporary" ? "Izin Keluar Sementara" : item.type === "arrive_late" ? "Izin Datang Terlambat" : "Izin Pulang Lebih Awal";
+                          const timeRange = (item.type === "leave_early") 
+                            ? `Mulai ${item.start_time ? item.start_time.substring(0, 5) : "--:--"}`
+                            : `${item.start_time ? item.start_time.substring(0, 5) : "--:--"} s/d ${item.end_time ? item.end_time.substring(0, 5) : "--:--"}`;
+                          return (
+                            <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
+                              <td className="p-3.5">
+                                <div className="text-zinc-900 font-bold">{item.employee?.name}</div>
+                                <div className="text-[10px] text-zinc-400 font-mono font-bold mt-0.5">{item.employee?.employee_code}</div>
+                              </td>
+                              <td className="p-3.5 text-zinc-800 font-bold">{typeLabel}</td>
+                              <td className="p-3.5 text-zinc-500 font-semibold">
+                                <div className="text-zinc-700 font-bold">{formatIndonesianDate(item.date)}</div>
+                                <div className="text-[10px] text-zinc-400 mt-0.5">{timeRange}</div>
+                              </td>
+                              <td className="p-3.5 text-zinc-650 max-w-[200px]" title={item.reason}>
+                                {item.reason}
+                              </td>
+                              <td className="p-3.5 text-center">
+                                {item.attachment ? (
+                                  <a
+                                    href={api.defaults.baseURL + "/../storage/" + item.attachment}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2 py-1 rounded-md"
+                                  >
+                                    <FileText className="h-3 w-3" />
+                                    Lihat Lampiran
+                                  </a>
+                                ) : (
+                                  <span className="text-zinc-400">-</span>
+                                )}
+                              </td>
+                              <td className="p-3.5 text-center">
+                                <div className="flex justify-center gap-2">
+                                  <button
+                                    onClick={() => approveWorkHourPermissionMutation.mutate(item.id)}
+                                    disabled={approveWorkHourPermissionMutation.isPending}
+                                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold cursor-pointer transition-all"
+                                  >
+                                    <Check className="h-3 w-3" />
+                                    Setujui
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenRejectModal(item.id, "work_hour")}
                                     className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold cursor-pointer transition-all"
                                   >
                                     <Ban className="h-3 w-3" />
@@ -1686,6 +2004,179 @@ export default function AttendanceLeavePage() {
             </div>
           </div>
         )}
+        {/* Modal Pengajuan Izin Jam Kerja */}
+        {isWorkHourModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm px-4">
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden">
+              <div className="flex items-center justify-between border-b border-zinc-100 p-6 pb-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-blue-605" />
+                  <h3 className="text-sm font-bold text-zinc-950">Ajukan Izin Jam Kerja</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsWorkHourModalOpen(false)}
+                  className="p-1 text-zinc-400 hover:text-zinc-700 rounded-lg cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!workHourDate) {
+                    showAlert("Tanggal wajib diisi", "warning");
+                    return;
+                  }
+                  if (!workHourReason || workHourReason.trim() === "") {
+                    showAlert("Alasan wajib diisi", "warning");
+                    return;
+                  }
+                  submitWorkHourPermissionMutation.mutate({
+                    type: workHourType,
+                    date: workHourDate,
+                    start_time: workHourStartTime,
+                    end_time: workHourEndTime,
+                    reason: workHourReason,
+                    attachment: workHourAttachment,
+                  });
+                }}
+                className="flex flex-col flex-1 overflow-hidden"
+              >
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {/* Tipe Izin */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Tipe Izin Jam Kerja
+                    </label>
+                    <select
+                      value={workHourType}
+                      onChange={(e) => {
+                        const val = e.target.value as any;
+                        setWorkHourType(val);
+                        setWorkHourStartTime("");
+                        setWorkHourEndTime("");
+                      }}
+                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent bg-white font-semibold"
+                    >
+                      <option value="out_temporary">Izin Keluar Sementara</option>
+                      <option value="arrive_late">Izin Datang Terlambat</option>
+                      <option value="leave_early">Izin Pulang Lebih Awal</option>
+                    </select>
+                  </div>
+
+                  {/* Tanggal */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Tanggal Izin
+                    </label>
+                    <input
+                      type="date"
+                      value={workHourDate}
+                      onChange={(e) => setWorkHourDate(e.target.value)}
+                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-950 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent bg-white"
+                    />
+                  </div>
+
+                  {/* Jam Mulai & Jam Selesai Dinamis */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Input Jam Mulai / Jam Keluar */}
+                    {workHourType !== "arrive_late" && (
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                          {workHourType === "leave_early" ? "Jam Keluar" : "Jam Mulai Keluar"}
+                        </label>
+                        <input
+                          type="time"
+                          value={workHourStartTime}
+                          onChange={(e) => setWorkHourStartTime(e.target.value)}
+                          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-950 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent bg-white"
+                        />
+                      </div>
+                    )}
+
+                    {/* Input Jam Selesai / Estimasi Kembali */}
+                    {workHourType !== "leave_early" && (
+                      <div className={workHourType === "arrive_late" ? "col-span-2" : ""}>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                          {workHourType === "arrive_late" ? "Estimasi Jam Tiba di Kantor" : "Estimasi Jam Kembali"}
+                        </label>
+                        <input
+                          type="time"
+                          value={workHourEndTime}
+                          onChange={(e) => setWorkHourEndTime(e.target.value)}
+                          className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-950 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent bg-white"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Alasan */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Alasan / Keterangan Izin
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={workHourReason}
+                      onChange={(e) => setWorkHourReason(e.target.value)}
+                      className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-950 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent"
+                      placeholder="Jelaskan alasan izin secara detail..."
+                    />
+                  </div>
+
+                  {/* Lampiran */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Dokumen Lampiran (Opsional)
+                    </label>
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.pdf"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setWorkHourAttachment(e.target.files[0]);
+                        }
+                      }}
+                      className="w-full border border-zinc-200 rounded-lg text-xs text-zinc-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-l-lg file:border-0 file:text-[11px] file:font-bold file:bg-zinc-150 file:text-zinc-700 hover:file:bg-zinc-200 file:cursor-pointer"
+                    />
+                    <p className="text-[9px] text-zinc-400 mt-1">Format: JPG, PNG, PDF (Maks. 2MB)</p>
+                  </div>
+                </div>
+
+                {/* Submit / Batal buttons */}
+                <div className="p-6 bg-zinc-50/50 border-t border-zinc-100 flex gap-3 rounded-b-2xl">
+                  <button
+                    type="button"
+                    onClick={() => setIsWorkHourModalOpen(false)}
+                    className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold py-2.5 rounded-lg transition-all cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitWorkHourPermissionMutation.isPending}
+                    className="flex-1 flex justify-center items-center gap-2 bg-[#FF8200] hover:bg-[#e07200] text-white font-bold py-2.5 rounded-lg shadow-sm text-xs cursor-pointer disabled:bg-zinc-200 disabled:text-zinc-400"
+                  >
+                    {submitWorkHourPermissionMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Mengirim...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-3.5 w-3.5" />
+                        Kirim Pengajuan
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
 
         {/* Modal Riwayat Pengajuan Cuti / Izin */}
         {isLeaveHistoryModalOpen && (
@@ -1704,76 +2195,178 @@ export default function AttendanceLeavePage() {
                 </button>
               </div>
 
+              {/* Tabs */}
+              <div className="flex border-b border-zinc-150 mb-4 shrink-0">
+                <button
+                  onClick={() => setHistoryActiveTab("leave")}
+                  className={`px-4 py-2 text-xs font-bold border-b-2 cursor-pointer transition-all ${
+                    historyActiveTab === "leave"
+                      ? "border-[#FF8200] text-[#FF8200]"
+                      : "border-transparent text-zinc-400 hover:text-zinc-600"
+                  }`}
+                >
+                  Cuti & Izin Harian
+                </button>
+                <button
+                  onClick={() => setHistoryActiveTab("work_hour")}
+                  className={`px-4 py-2 text-xs font-bold border-b-2 cursor-pointer transition-all ${
+                    historyActiveTab === "work_hour"
+                      ? "border-[#FF8200] text-[#FF8200]"
+                      : "border-transparent text-zinc-400 hover:text-zinc-600"
+                  }`}
+                >
+                  Izin Jam Kerja
+                </button>
+              </div>
+
               <div className="overflow-y-auto flex-1">
-                {leaveLoading ? (
-                  <div className="p-12 flex justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                  </div>
-                ) : !leaveHistory?.data || leaveHistory.data.length === 0 ? (
-                  <p className="text-xs text-zinc-400 py-12 text-center">Belum ada riwayat pengajuan cuti/izin.</p>
+                {historyActiveTab === "leave" ? (
+                  leaveLoading ? (
+                    <div className="p-12 flex justify-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    </div>
+                  ) : !leaveHistory?.data || leaveHistory.data.length === 0 ? (
+                    <p className="text-xs text-zinc-400 py-12 text-center">Belum ada riwayat pengajuan cuti/izin.</p>
+                  ) : (
+                    <table className="w-full divide-y divide-zinc-150 text-left text-xs">
+                      <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider sticky top-0 z-10">
+                        <tr>
+                          <th className="p-3">Tipe</th>
+                          <th className="p-3">Durasi Tanggal</th>
+                          <th className="p-3">Alasan</th>
+                          <th className="p-3 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100 font-medium">
+                        {leaveHistory.data.map((item: any) => {
+                          const start = formatIndonesianDate(item.start_date);
+                          const end = formatIndonesianDate(item.end_date);
+                          const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
+                          return (
+                            <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
+                              <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
+                              <td className="p-3 text-zinc-500 font-semibold">{start} s/d {end}</td>
+                              <td className="p-3 text-zinc-650 max-w-[300px] truncate" title={item.reason}>{item.reason}</td>
+                               <td className="p-3 text-center">
+                                 <div className="flex flex-col items-center gap-1.5 justify-center">
+                                   <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                                     item.status === "approved"
+                                       ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                       : item.status === "rejected"
+                                       ? "bg-rose-50 text-rose-700 border border-rose-100"
+                                       : item.status === "cancelled"
+                                       ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
+                                       : "bg-amber-50 text-amber-700 border border-amber-100"
+                                   }`}>
+                                     {item.status === "approved"
+                                       ? "DISETUJUI"
+                                       : item.status === "rejected"
+                                       ? "DITOLAK"
+                                       : item.status === "cancelled"
+                                       ? "DIBATALKAN"
+                                       : "DIPROSES"}
+                                   </span>
+                                   {item.status === "pending" && (
+                                     <button
+                                       onClick={() => showConfirm(
+                                         "Apakah Anda yakin ingin membatalkan pengajuan ini?",
+                                         () => cancelLeaveMutation.mutate(item.id),
+                                         "danger",
+                                         "Konfirmasi Pembatalan"
+                                       )}
+                                       disabled={cancelLeaveMutation.isPending}
+                                       className="text-[9px] font-bold text-rose-650 hover:text-rose-800 border border-rose-150 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded cursor-pointer transition-all"
+                                     >
+                                       Batalkan
+                                     </button>
+                                   )}
+                                 </div>
+                                {item.rejection_reason && (
+                                  <p className="text-[9px] text-rose-600 mt-1 font-semibold">Alasan: {item.rejection_reason}</p>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )
                 ) : (
-                  <table className="w-full divide-y divide-zinc-150 text-left text-xs">
-                    <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider sticky top-0 z-10">
-                      <tr>
-                        <th className="p-3">Tipe</th>
-                        <th className="p-3">Durasi Tanggal</th>
-                        <th className="p-3">Alasan</th>
-                        <th className="p-3 text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-100 font-medium">
-                      {leaveHistory.data.map((item: any) => {
-                        const start = formatIndonesianDate(item.start_date);
-                        const end = formatIndonesianDate(item.end_date);
-                        const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
-                        return (
-                          <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
-                            <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
-                            <td className="p-3 text-zinc-500 font-semibold">{start} s/d {end}</td>
-                            <td className="p-3 text-zinc-650 max-w-[300px] truncate" title={item.reason}>{item.reason}</td>
-                             <td className="p-3 text-center">
-                               <div className="flex flex-col items-center gap-1.5 justify-center">
-                                 <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                                   item.status === "approved"
-                                     ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                                     : item.status === "rejected"
-                                     ? "bg-rose-50 text-rose-700 border border-rose-100"
-                                     : item.status === "cancelled"
-                                     ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
-                                     : "bg-amber-50 text-amber-700 border border-amber-100"
-                                 }`}>
-                                   {item.status === "approved"
-                                     ? "DISETUJUI"
-                                     : item.status === "rejected"
-                                     ? "DITOLAK"
-                                     : item.status === "cancelled"
-                                     ? "DIBATALKAN"
-                                     : "DIPROSES"}
-                                 </span>
-                                 {item.status === "pending" && (
-                                   <button
-                                     onClick={() => showConfirm(
-                                       "Apakah Anda yakin ingin membatalkan pengajuan ini?",
-                                       () => cancelLeaveMutation.mutate(item.id),
-                                       "danger",
-                                       "Konfirmasi Pembatalan"
-                                     )}
-                                     disabled={cancelLeaveMutation.isPending}
-                                     className="text-[9px] font-bold text-rose-650 hover:text-rose-800 border border-rose-150 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded cursor-pointer transition-all"
-                                   >
-                                     Batalkan
-                                   </button>
-                                 )}
-                               </div>
-                              {item.rejection_reason && (
-                                <p className="text-[9px] text-rose-600 mt-1 font-semibold">Alasan: {item.rejection_reason}</p>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  workHourPermissionsLoading ? (
+                    <div className="p-12 flex justify-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    </div>
+                  ) : !workHourPermissions?.data || workHourPermissions.data.length === 0 ? (
+                    <p className="text-xs text-zinc-400 py-12 text-center">Belum ada riwayat pengajuan izin jam kerja.</p>
+                  ) : (
+                    <table className="w-full divide-y divide-zinc-150 text-left text-xs">
+                      <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider sticky top-0 z-10">
+                        <tr>
+                          <th className="p-3">Tipe Izin</th>
+                          <th className="p-3">Tanggal & Jam</th>
+                          <th className="p-3">Alasan</th>
+                          <th className="p-3 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100 font-medium">
+                        {workHourPermissions.data.map((item: any) => {
+                          const dateStr = formatIndonesianDate(item.date);
+                          const typeLabel = item.type === "out_temporary" ? "Izin Keluar Sementara" : item.type === "arrive_late" ? "Izin Datang Terlambat" : "Izin Pulang Lebih Awal";
+                          const timeRange = (item.type === "leave_early") 
+                            ? `Mulai ${item.start_time ? item.start_time.substring(0, 5) : "--:--"}`
+                            : `${item.start_time ? item.start_time.substring(0, 5) : "--:--"} s/d ${item.end_time ? item.end_time.substring(0, 5) : "--:--"}`;
+                          return (
+                            <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
+                              <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
+                              <td className="p-3 text-zinc-500 font-semibold">
+                                <div className="text-zinc-700 font-bold">{dateStr}</div>
+                                <div className="text-[10px] text-zinc-400 mt-0.5">{timeRange}</div>
+                              </td>
+                              <td className="p-3 text-zinc-650 max-w-[300px] truncate" title={item.reason}>{item.reason}</td>
+                              <td className="p-3 text-center">
+                                <div className="flex flex-col items-center gap-1.5 justify-center">
+                                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                                    item.status === "approved"
+                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                      : item.status === "rejected"
+                                      ? "bg-rose-50 text-rose-700 border border-rose-100"
+                                      : item.status === "cancelled"
+                                      ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
+                                      : "bg-amber-50 text-amber-700 border border-amber-100"
+                                  }`}>
+                                    {item.status === "approved"
+                                      ? "DISETUJUI"
+                                      : item.status === "rejected"
+                                      ? "DITOLAK"
+                                      : item.status === "cancelled"
+                                      ? "DIBATALKAN"
+                                      : "DIPROSES"}
+                                  </span>
+                                  {item.status === "pending" && (
+                                    <button
+                                      onClick={() => showConfirm(
+                                        "Apakah Anda yakin ingin membatalkan pengajuan izin ini?",
+                                        () => cancelWorkHourPermissionMutation.mutate(item.id),
+                                        "danger",
+                                        "Konfirmasi Pembatalan"
+                                      )}
+                                      disabled={cancelWorkHourPermissionMutation.isPending}
+                                      className="text-[9px] font-bold text-rose-650 hover:text-rose-800 border border-rose-150 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded cursor-pointer transition-all"
+                                    >
+                                      Batalkan
+                                    </button>
+                                  )}
+                                </div>
+                                {item.rejection_reason && (
+                                  <p className="text-[9px] text-rose-600 mt-1 font-semibold">Alasan: {item.rejection_reason}</p>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )
                 )}
               </div>
 

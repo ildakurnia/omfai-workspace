@@ -100,4 +100,12 @@ class Employee extends Model
     {
         return $this->hasMany(LeaveRequest::class);
     }
+
+    /**
+     * Get the work hour permissions for the employee.
+     */
+    public function workHourPermissions()
+    {
+        return $this->hasMany(WorkHourPermission::class);
+    }
 }

@@ -150,8 +150,14 @@ class AttendanceApiController extends Controller
                 ], 403);
             }
 
-            // Check-out is locked until the end of shift
-            if ($currentTime < $shiftEnd) {
+            // Check-out is locked until the end of shift, unless employee has an approved 'leave_early' permission
+            $hasLeaveEarlyPermission = \App\Models\WorkHourPermission::where('employee_id', $employee->id)
+                ->where('date', $today)
+                ->where('type', 'leave_early')
+                ->where('status', 'approved')
+                ->exists();
+
+            if ($currentTime < $shiftEnd && !$hasLeaveEarlyPermission) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Check-out is locked until ' . substr($shiftEnd, 0, 5) . '.'
