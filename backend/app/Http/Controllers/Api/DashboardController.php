@@ -42,4 +42,34 @@ class DashboardController extends Controller
             'data' => $summary,
         ]);
     }
+
+    /**
+     * Bersihkan cache Laravel (cache, config, route, view).
+     * Hanya dapat diakses oleh Owner dan Admin.
+     */
+    public function clearCache(Request $request): JsonResponse
+    {
+        if (!$request->user()->hasRole('Admin')) {
+            return response()->json([
+                'message' => 'Anda tidak memiliki hak akses.'
+            ], 403);
+        }
+
+        try {
+            \Illuminate\Support\Facades\Artisan::call('cache:clear');
+            \Illuminate\Support\Facades\Artisan::call('config:clear');
+            \Illuminate\Support\Facades\Artisan::call('route:clear');
+            \Illuminate\Support\Facades\Artisan::call('view:clear');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Cache Laravel (app, config, route, view) berhasil dibersihkan!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membersihkan cache: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

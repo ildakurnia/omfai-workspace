@@ -25,6 +25,7 @@ import {
   CalendarX,
   Ban,
   MessageSquare,
+  RefreshCw,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import ReviewModal from "@/components/review-modal";
@@ -162,6 +163,23 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [isClearingCache, setIsClearingCache] = useState(false);
+
+  const handleClearCache = async () => {
+    setIsClearingCache(true);
+    try {
+      const res = await api.post("/admin/clear-cache");
+      showAlert(res.data.message || "Cache berhasil dibersihkan!", "success", "Sukses");
+    } catch (err: any) {
+      showAlert(
+        err.response?.data?.message || "Gagal membersihkan cache server.",
+        "error",
+        "Eror"
+      );
+    } finally {
+      setIsClearingCache(false);
+    }
+  };
 
   // States untuk review/catatan Owner dari Dashboard
   const [reviewActivity, setReviewActivity] = useState<any>(null);
@@ -397,9 +415,21 @@ export default function DashboardPage() {
 
     return (
       <DashboardLayout>
-        <div>
-          <h2 className="text-2xl font-bold text-zinc-950">Monitoring Ringkasan Perusahaan</h2>
-          <p className="text-sm text-zinc-500 font-medium mt-1.5">Pantau kondisi aktivitas seluruh karyawan secara real-time.</p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-zinc-950">Monitoring Ringkasan Perusahaan</h2>
+            <p className="text-sm text-zinc-500 font-medium mt-1.5">Pantau kondisi aktivitas seluruh karyawan secara real-time.</p>
+          </div>
+          {roles.includes("Admin") && (
+            <button
+              onClick={handleClearCache}
+              disabled={isClearingCache}
+              className="inline-flex items-center gap-2 bg-red-550 hover:bg-red-100/80 text-red-650 border border-red-100 text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer transition-all self-start sm:self-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isClearingCache ? "animate-spin" : ""}`} />
+              {isClearingCache ? "Membersihkan..." : "Bersihkan Cache"}
+            </button>
+          )}
         </div>
 
         {/* Widget Kehadiran Hari Ini */}
