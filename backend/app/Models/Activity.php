@@ -39,7 +39,19 @@ class Activity extends Model
      */
     public function getProofImageUrlAttribute(): ?string
     {
-        return $this->proof_image ? asset('storage/' . $this->proof_image) : null;
+        if (!$this->proof_image) {
+            return null;
+        }
+
+        // Dapatkan host dinamis dari request saat ini (misal https://api.domain.com)
+        $host = request()->getSchemeAndHttpHost();
+
+        // Jika dijalankan dari CLI atau request tidak memiliki host, gunakan config app.url
+        if (app()->runningInConsole() || !$host) {
+            $host = rtrim(config('app.url'), '/');
+        }
+
+        return $host . '/storage/' . $this->proof_image;
     }
 
     public function user()
