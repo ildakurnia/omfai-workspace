@@ -690,12 +690,14 @@ export default function DashboardPage() {
                       {act.proofImageUrl && (
                         <div className="mt-1.5 flex items-center gap-1 text-xs">
                           <span className="text-zinc-400">🖼️</span>
-                          <button
-                            onClick={() => setActivePhotoUrl(act.proofImageUrl)}
-                            className="text-[#FF8200] hover:text-[#e07200] hover:underline font-bold bg-transparent border-0 p-0 cursor-pointer"
+                          <a
+                            href={act.proofImageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#FF8200] hover:text-[#e07200] hover:underline font-bold"
                           >
                             Lihat Foto Bukti
-                          </button>
+                          </a>
                         </div>
                       )}
                       <div className="flex flex-col gap-1.5 mt-2.5">
@@ -787,12 +789,14 @@ export default function DashboardPage() {
                       {act.proofImageUrl && (
                         <div className="mt-1.5 flex items-center gap-1 text-xs">
                           <span className="text-zinc-400">🖼️</span>
-                          <button
-                            onClick={() => setActivePhotoUrl(act.proofImageUrl)}
-                            className="text-[#FF8200] hover:text-[#e07200] hover:underline font-bold bg-transparent border-0 p-0 cursor-pointer"
+                          <a
+                            href={act.proofImageUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#FF8200] hover:text-[#e07200] hover:underline font-bold"
                           >
                             Lihat Foto Bukti
-                          </button>
+                          </a>
                         </div>
                       )}
                       <div className="text-sm text-orange-700 font-semibold mt-1.5 bg-white border border-orange-150 px-2 py-1 rounded-lg break-words whitespace-pre-wrap">

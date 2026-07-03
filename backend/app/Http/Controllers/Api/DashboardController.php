@@ -60,10 +60,11 @@ class DashboardController extends Controller
             \Illuminate\Support\Facades\Artisan::call('config:clear');
             \Illuminate\Support\Facades\Artisan::call('route:clear');
             \Illuminate\Support\Facades\Artisan::call('view:clear');
+            \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Cache Laravel (app, config, route, view) berhasil dibersihkan!'
+                'message' => 'Cache Laravel & migrasi database berhasil diperbarui!'
             ]);
         } catch (\Exception $e) {
             return response()->json([
