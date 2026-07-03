@@ -30,6 +30,7 @@ class StoreActivityRequest extends FormRequest
             'hold_reason' => 'required_if:status,' . ActivityStatusEnum::ON_HOLD->value . '|nullable|string',
             'reference_link' => 'nullable|url',
             'progress_note' => 'nullable|string',
+            'proof_image' => 'nullable|image|mimes:png,jpg,jpeg,webp|max:5120',
         ];
     }
 
@@ -42,6 +43,9 @@ class StoreActivityRequest extends FormRequest
             'category_id.exists' => 'Kategori yang dipilih tidak aktif atau tidak ditemukan.',
             'hold_reason.required_if' => 'Alasan hold (hold reason) wajib diisi jika status aktivitas adalah On Hold.',
             'reference_link.url' => 'Link referensi harus menggunakan format URL yang valid.',
+            'proof_image.image' => 'File bukti harus berupa gambar.',
+            'proof_image.mimes' => 'Format gambar bukti harus berupa PNG, JPG, JPEG, atau WebP.',
+            'proof_image.max' => 'Ukuran gambar bukti tidak boleh lebih dari 5MB.',
         ];
     }
 }

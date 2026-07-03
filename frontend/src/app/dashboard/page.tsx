@@ -24,8 +24,10 @@ import {
   FileText,
   CalendarX,
   Ban,
+  MessageSquare,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
+import ReviewModal from "@/components/review-modal";
 import api from "@/lib/api";
 import { formatDuration, formatActiveDuration, formatIndonesianDate, toLocalDateString, formatActiveOvertimeDuration, calculateOvertimeMinutes } from "@/lib/utils";
 import AlertModal from "@/components/alert-modal";
@@ -77,6 +79,32 @@ const generateMonthlyGrid = (monthStr: string, attendances: any[], leaves: any[]
     }
 
     return { status };
+  });
+};
+
+const renderTextWithLinks = (text: string) => {
+  if (!text) return "";
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9.-]+\.(?:com|org|net|edu|gov|io|id|dev|sh|co)(?:\/[^\s]*)?)/gi;
+  const parts = text.split(urlRegex);
+  return parts.map((part, index) => {
+    if (part.match(urlRegex)) {
+      const href = /^(https?:\/\/)/i.test(part) 
+        ? part 
+        : `https://${part}`;
+      return (
+        <a
+          key={index}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 hover:underline break-all font-bold"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
   });
 };
 
@@ -134,6 +162,11 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+
+  // States untuk review/catatan Owner dari Dashboard
+  const [reviewActivity, setReviewActivity] = useState<any>(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
 
   // Query: Ambil riwayat absen login karyawan
   const { data: attendanceHistory, isLoading: attendanceLoading } = useQuery({
@@ -613,7 +646,7 @@ export default function DashboardPage() {
                           {new Date(act.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
-                      <p className="text-sm text-zinc-700 mt-1 break-words whitespace-pre-wrap">{act.activity}</p>
+                      <div className="text-sm text-zinc-700 mt-1 break-words whitespace-pre-wrap">{renderTextWithLinks(act.activity)}</div>
                       {act.progressNote && (
                         <div className="text-xs text-zinc-500 font-semibold italic mt-1.5 bg-zinc-50 border border-zinc-100/60 px-2.5 py-1 rounded-lg inline-block max-w-full break-words">
                           Progress: {act.progressNote}
@@ -622,6 +655,17 @@ export default function DashboardPage() {
                       {act.ownerFeedback && (
                         <div className="text-xs text-orange-700 font-semibold mt-1.5 bg-orange-50/30 border border-orange-100/60 px-2.5 py-1 rounded-lg inline-block max-w-full break-words">
                           Feedback: {act.ownerFeedback}
+                        </div>
+                      )}
+                      {act.proofImageUrl && (
+                        <div className="mt-1.5 flex items-center gap-1 text-xs">
+                          <span className="text-zinc-400">🖼️</span>
+                          <button
+                            onClick={() => setActivePhotoUrl(act.proofImageUrl)}
+                            className="text-[#FF8200] hover:text-[#e07200] hover:underline font-bold bg-transparent border-0 p-0 cursor-pointer"
+                          >
+                            Lihat Foto Bukti
+                          </button>
                         </div>
                       )}
                       <div className="flex flex-col gap-1.5 mt-2.5">
@@ -694,10 +738,48 @@ export default function DashboardPage() {
                           {formatIndonesianDate(act.updatedAt, { showYear: false })}
                         </span>
                       </div>
-                      <p className="text-sm text-zinc-700 mt-1.5 break-words whitespace-pre-wrap"><strong>Tugas:</strong> {act.activity}</p>
-                      <p className="text-sm text-orange-700 font-semibold mt-1.5 bg-white border border-orange-150 px-2 py-1 rounded-lg">
-                        <strong>Kendala:</strong> {act.holdReason}
-                      </p>
+                      <div className="text-sm text-zinc-700 mt-1.5 break-words whitespace-pre-wrap">
+                        <strong>Tugas:</strong> {renderTextWithLinks(act.activity)}
+                      </div>
+                      {act.referenceLink && (
+                        <div className="mt-1.5 flex items-center gap-1 text-xs">
+                          <span className="text-zinc-400">🔗</span>
+                          <a
+                            href={act.referenceLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#FF8200] hover:text-[#e07200] hover:underline font-bold"
+                          >
+                            Buka Link Bukti / Pekerjaan
+                          </a>
+                        </div>
+                      )}
+                      {act.proofImageUrl && (
+                        <div className="mt-1.5 flex items-center gap-1 text-xs">
+                          <span className="text-zinc-400">🖼️</span>
+                          <button
+                            onClick={() => setActivePhotoUrl(act.proofImageUrl)}
+                            className="text-[#FF8200] hover:text-[#e07200] hover:underline font-bold bg-transparent border-0 p-0 cursor-pointer"
+                          >
+                            Lihat Foto Bukti
+                          </button>
+                        </div>
+                      )}
+                      <div className="text-sm text-orange-700 font-semibold mt-1.5 bg-white border border-orange-150 px-2 py-1 rounded-lg break-words whitespace-pre-wrap">
+                        <strong>Kendala:</strong> {renderTextWithLinks(act.holdReason)}
+                      </div>
+                      {roles.includes("Owner") && (
+                        <button
+                          onClick={() => {
+                            setReviewActivity(act);
+                            setIsReviewOpen(true);
+                          }}
+                          className="mt-2.5 flex items-center justify-center gap-1.5 w-full py-2 px-3 text-xs font-bold text-white bg-[#FF8200] hover:bg-[#e07200] rounded-lg shadow-sm shadow-orange-100 cursor-pointer"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          Beri Feedback / ACC
+                        </button>
+                      )}
                     </div>
                   ))
                 )}
@@ -1101,6 +1183,21 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Review Modal for Owner */}
+      {roles.includes("Owner") && (
+        <ReviewModal
+          isOpen={isReviewOpen}
+          onClose={() => {
+            setIsReviewOpen(false);
+            setReviewActivity(null);
+          }}
+          activity={reviewActivity}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+          }}
+        />
+      )}
+
       {/* Custom Alert Modal */}
       <AlertModal
         isOpen={alertConfig.isOpen}
@@ -1109,6 +1206,26 @@ export default function DashboardPage() {
         message={alertConfig.message}
         variant={alertConfig.variant}
       />
+
+      {/* Lightbox / Foto Bukti Modal */}
+      {activePhotoUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/90 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="absolute inset-0 cursor-pointer" onClick={() => setActivePhotoUrl(null)} />
+          <div className="relative max-w-4xl max-h-[85vh] bg-white p-2 rounded-2xl shadow-2xl z-10 flex flex-col items-center">
+            <button
+              onClick={() => setActivePhotoUrl(null)}
+              className="absolute top-4 right-4 p-2 bg-zinc-900/80 hover:bg-zinc-800 text-white rounded-full z-20 cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <img 
+              src={activePhotoUrl} 
+              alt="Foto Bukti Kerja" 
+              className="max-w-full max-h-[80vh] rounded-lg object-contain" 
+            />
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

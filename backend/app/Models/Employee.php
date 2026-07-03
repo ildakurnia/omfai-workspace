@@ -21,7 +21,7 @@ class Employee extends Model
 
     protected $casts = [
         'joined_at' => 'date:Y-m-d',
-        'leave_balance' => 'integer',
+        'leave_balance' => 'float',
     ];
 
     /**

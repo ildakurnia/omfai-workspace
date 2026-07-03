@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class ActivityService
@@ -128,6 +129,11 @@ class ActivityService
             $status = $data['status'];
             $completedAt = ($status === ActivityStatusEnum::DONE->value) ? Carbon::now() : null;
 
+            $proofImagePath = null;
+            if (isset($data['proof_image']) && $data['proof_image'] instanceof \Illuminate\Http\UploadedFile) {
+                $proofImagePath = $this->uploadAndCompressImage($data['proof_image']);
+            }
+
             // 1. Simpan aktivitas
             $activity = Activity::create([
                 'user_id' => $user['id'],
@@ -136,6 +142,7 @@ class ActivityService
                 'status' => $status,
                 'hold_reason' => $status === ActivityStatusEnum::ON_HOLD->value ? $data['hold_reason'] : ($data['hold_reason'] ?? null),
                 'reference_link' => $data['reference_link'] ?? null,
+                'proof_image' => $proofImagePath,
                 'progress_note' => $data['progress_note'] ?? null,
                 'completed_at' => $completedAt,
             ]);
@@ -190,6 +197,13 @@ class ActivityService
                 'reference_link' => $data['reference_link'] ?? null,
                 'progress_note' => $data['progress_note'] ?? null,
             ];
+
+            if (isset($data['proof_image']) && $data['proof_image'] instanceof \Illuminate\Http\UploadedFile) {
+                if ($activity->proof_image) {
+                    Storage::disk('public')->delete($activity->proof_image);
+                }
+                $updateFields['proof_image'] = $this->uploadAndCompressImage($data['proof_image']);
+            }
 
             // Aturan Hold Reason (BR-04 & BR-05)
             if ($newStatus === ActivityStatusEnum::ON_HOLD->value) {
@@ -246,7 +260,12 @@ class ActivityService
             ]);
         }
 
-        return $activity->delete();
+        return DB::transaction(function () use ($activity) {
+            if ($activity->proof_image) {
+                Storage::disk('public')->delete($activity->proof_image);
+            }
+            return $activity->delete();
+        });
     }
 
     /**
@@ -264,5 +283,78 @@ class ActivityService
         ]);
 
         return $activity->load(['category', 'user', 'logs.changedByUser']);
+    }
+
+    /**
+     * Upload dan kompres gambar bukti menggunakan GD.
+     * Mengubah format ke WebP dan meresize jika lebar melebihi 1200px.
+     */
+    protected function uploadAndCompressImage($file, string $folder = 'activity_proofs', int $maxWidth = 1200, int $quality = 80): ?string
+    {
+        if (!$file) {
+            return null;
+        }
+
+        $tempPath = $file->getRealPath();
+        $imageInfo = @getimagesize($tempPath);
+        if (!$imageInfo) {
+            return $file->store($folder, 'public');
+        }
+
+        $mime = $imageInfo['mime'];
+        switch ($mime) {
+            case 'image/jpeg':
+                $image = @imagecreatefromjpeg($tempPath);
+                break;
+            case 'image/png':
+                $image = @imagecreatefrompng($tempPath);
+                if ($image) {
+                    imagealphablending($image, true);
+                    imagesavealpha($image, true);
+                }
+                break;
+            case 'image/webp':
+                $image = @imagecreatefromwebp($tempPath);
+                break;
+            default:
+                return $file->store($folder, 'public');
+        }
+
+        if (!$image) {
+            return $file->store($folder, 'public');
+        }
+
+        $width = imagesx($image);
+        $height = imagesy($image);
+
+        if ($width > $maxWidth) {
+            $newWidth = $maxWidth;
+            $newHeight = (int) floor($height * ($maxWidth / $width));
+
+            $resizedImage = imagecreatetruecolor($newWidth, $newHeight);
+            if ($resizedImage) {
+                imagealphablending($resizedImage, false);
+                imagesavealpha($resizedImage, true);
+                imagecopyresampled($resizedImage, $image, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+                imagedestroy($image);
+                $image = $resizedImage;
+            }
+        }
+
+        $filename = uniqid('proof_') . '_' . time() . '.webp';
+        $relativeStoragePath = $folder . '/' . $filename;
+        $absolutePath = storage_path('app/public/' . $relativeStoragePath);
+
+        if (!file_exists(dirname($absolutePath))) {
+            @mkdir(dirname($absolutePath), 0755, true);
+        }
+
+        if (@imagewebp($image, $absolutePath, $quality)) {
+            imagedestroy($image);
+            return $relativeStoragePath;
+        }
+
+        imagedestroy($image);
+        return $file->store($folder, 'public');
     }
 }

@@ -48,6 +48,7 @@ const activitySchema = z.object({
   status: z.enum(["in_progress", "on_hold", "done"]),
   hold_reason: z.string().optional(),
   reference_link: z.string().optional(),
+  proof_image: z.any().optional(),
   progress_note: z.string().optional(),
 }).refine((data) => {
   if (data.status === "on_hold" && (!data.hold_reason || data.hold_reason.trim() === "")) {
@@ -91,6 +92,7 @@ export default function ActivitiesPage() {
   // States untuk review/catatan Owner
   const [reviewActivity, setReviewActivity] = useState<any>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
 
 
 
@@ -322,11 +324,35 @@ export default function ActivitiesPage() {
   // Mutation: Simpan / Edit Aktivitas
   const saveMutation = useMutation({
     mutationFn: async (data: ActivityFormValues) => {
+      const formData = new FormData();
+      formData.append("category_id", data.category_id);
+      formData.append("activity", data.activity);
+      formData.append("status", data.status);
+      if (data.hold_reason) formData.append("hold_reason", data.hold_reason);
+      if (data.reference_link) formData.append("reference_link", data.reference_link);
+      if (data.progress_note) formData.append("progress_note", data.progress_note);
+      
+      // Append file if selected (it is a FileList from react-hook-form)
+      if (data.proof_image && data.proof_image instanceof FileList && data.proof_image[0]) {
+        formData.append("proof_image", data.proof_image[0]);
+      } else if (data.proof_image && data.proof_image instanceof File) {
+        formData.append("proof_image", data.proof_image);
+      }
+
       if (selectedActivity) {
-        const response = await api.put(`/activities/${selectedActivity.id}`, data);
+        formData.append("_method", "PUT");
+        const response = await api.post(`/activities/${selectedActivity.id}`, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
         return response.data;
       } else {
-        const response = await api.post("/activities", data);
+        const response = await api.post("/activities", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
         return response.data;
       }
     },
@@ -720,22 +746,32 @@ export default function ActivitiesPage() {
                           )}
                         </div>
                       </td>
-                      <td className="py-5 px-4 max-w-xs break-words">
+                       <td className="py-5 px-4 max-w-xs break-words">
                         {act.status === "on_hold" && act.hold_reason && (
                           <div className="text-orange-700 font-bold bg-orange-50/50 border border-orange-100 p-2 rounded-lg text-xs mb-1">
                             Kendala: {act.hold_reason}
                           </div>
                         )}
-                        {act.reference_link && (
-                          <a
-                            href={act.reference_link}
-                            target="_blank"
-                            className="text-[#FF8200] hover:underline font-bold inline-flex items-center gap-1 text-xs mt-1"
-                          >
-                            Buka Bukti <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                        {!act.hold_reason && !act.reference_link && "-"}
+                        <div className="flex flex-col gap-1.5 mt-1">
+                          {act.reference_link && (
+                            <a
+                              href={act.reference_link}
+                              target="_blank"
+                              className="text-[#FF8200] hover:underline font-bold inline-flex items-center gap-1 text-xs"
+                            >
+                              Buka Bukti Link <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                          {act.proof_image_url && (
+                            <button
+                              onClick={() => setActivePhotoUrl(act.proof_image_url)}
+                              className="text-[#FF8200] hover:underline font-bold inline-flex items-center gap-1 text-xs text-left cursor-pointer bg-transparent border-0 p-0"
+                            >
+                              🖼️ Lihat Foto Bukti
+                            </button>
+                          )}
+                        </div>
+                        {!act.hold_reason && !act.reference_link && !act.proof_image_url && "-"}
                       </td>
                       <td className="py-5 pl-4 pr-6 md:pr-8 text-center">
                         {isOwner && !canEdit ? (
@@ -1076,6 +1112,22 @@ export default function ActivitiesPage() {
                 )}
               </div>
 
+              {/* Upload Foto Bukti */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                  Upload Foto Bukti Kerja (Opsional, Maks 5MB)
+                </label>
+                <input
+                  {...register("proof_image")}
+                  type="file"
+                  accept="image/*"
+                  className="w-full text-xs text-zinc-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-orange-50 file:text-[#FF8200] hover:file:bg-orange-100 border border-zinc-200 rounded-lg p-1 bg-white focus:outline-none"
+                />
+                {errors.proof_image && (
+                  <p className="mt-1 text-xs text-red-600 font-semibold">{errors.proof_image.message as string}</p>
+                )}
+              </div>
+
               {/* Catatan Progres / Notes */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
@@ -1228,7 +1280,25 @@ export default function ActivitiesPage() {
         variant={alertConfig.variant}
       />
 
-
+      {/* Lightbox / Foto Bukti Modal */}
+      {activePhotoUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/90 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="absolute inset-0 cursor-pointer" onClick={() => setActivePhotoUrl(null)} />
+          <div className="relative max-w-4xl max-h-[85vh] bg-white p-2 rounded-2xl shadow-2xl z-10 flex flex-col items-center">
+            <button
+              onClick={() => setActivePhotoUrl(null)}
+              className="absolute top-4 right-4 p-2 bg-zinc-900/80 hover:bg-zinc-800 text-white rounded-full z-20 cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <img 
+              src={activePhotoUrl} 
+              alt="Foto Bukti Kerja" 
+              className="max-w-full max-h-[80vh] rounded-lg object-contain" 
+            />
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

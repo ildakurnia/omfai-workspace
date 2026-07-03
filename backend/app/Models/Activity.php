@@ -17,10 +17,15 @@ class Activity extends Model
         'status',
         'hold_reason',
         'reference_link',
+        'proof_image',
         'progress_note',
         'completed_at',
         'owner_feedback',
         'feedback_at',
+    ];
+
+    protected $appends = [
+        'proof_image_url',
     ];
 
     protected $casts = [
@@ -28,6 +33,14 @@ class Activity extends Model
         'completed_at' => 'datetime',
         'feedback_at' => 'datetime',
     ];
+
+    /**
+     * Accessor untuk URL publik gambar bukti.
+     */
+    public function getProofImageUrlAttribute(): ?string
+    {
+        return $this->proof_image ? asset('storage/' . $this->proof_image) : null;
+    }
 
     public function user()
     {

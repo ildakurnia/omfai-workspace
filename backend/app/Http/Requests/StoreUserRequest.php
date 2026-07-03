@@ -28,7 +28,7 @@ class StoreUserRequest extends FormRequest
             'role' => 'required|string|in:Owner,Admin,Employee',
             'joined_at' => 'required_if:role,Employee|nullable|date',
             'whatsapp_number' => 'required_if:role,Employee|nullable|string',
-            'leave_balance' => 'required_if:role,Employee|nullable|integer',
+            'leave_balance' => 'required_if:role,Employee|nullable|numeric|min:0',
         ];
     }
 }

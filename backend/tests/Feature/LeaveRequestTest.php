@@ -105,17 +105,14 @@ class LeaveRequestTest extends TestCase
         ]);
     }
 
-    /**
-     * Test annual leave fails if requested days exceed leave balance.
-     */
     public function test_annual_leave_fails_if_exceeding_balance()
     {
-        // Request 15 days of leave (balance is 12)
+        // Request 30 days of leave (will definitely exceed 12 days balance even with weekend exclusions)
         $response = $this->actingAs($this->oldEmployeeUser)
             ->postJson('/api/ajukan-cuti', [
                 'type' => 'annual_leave',
                 'start_date' => Carbon::now()->addDays(1)->format('Y-m-d'),
-                'end_date' => Carbon::now()->addDays(15)->format('Y-m-d'),
+                'end_date' => Carbon::now()->addDays(30)->format('Y-m-d'),
                 'reason' => 'Very long trip.',
             ]);
 
@@ -188,17 +185,17 @@ class LeaveRequestTest extends TestCase
             ]);
     }
 
-    /**
-     * Test approval process decrements leave balance for annual leave.
-     */
     public function test_approval_decrements_leave_balance_for_annual_leave()
     {
+        $start = Carbon::parse('next monday')->format('Y-m-d');
+        $end = Carbon::parse('next tuesday')->format('Y-m-d');
+
         // 1. Submit a pending annual leave request (2 days)
         $leaveRequest = LeaveRequest::create([
             'employee_id' => $this->oldEmployee->id,
             'type' => 'annual_leave',
-            'start_date' => Carbon::now()->addDays(5)->format('Y-m-d'),
-            'end_date' => Carbon::now()->addDays(6)->format('Y-m-d'),
+            'start_date' => $start,
+            'end_date' => $end,
             'reason' => 'Going to hometown.',
             'status' => 'pending',
         ]);
@@ -211,7 +208,7 @@ class LeaveRequestTest extends TestCase
         $this->assertEquals('approved', $leaveRequest->refresh()->status);
         
         // 12 days default - 2 days = 10 days remaining
-        $this->assertEquals(10, $this->oldEmployee->refresh()->leave_balance);
+        $this->assertEquals(10.0, $this->oldEmployee->refresh()->leave_balance);
     }
 
     /**
@@ -372,8 +369,8 @@ class LeaveRequestTest extends TestCase
      */
     public function test_delete_leave_request_succeeds()
     {
-        $startDate = Carbon::now()->addDays(25)->format('Y-m-d');
-        $endDate = Carbon::now()->addDays(26)->format('Y-m-d'); // 2 days
+        $startDate = Carbon::parse('next monday')->addWeeks(4)->format('Y-m-d');
+        $endDate = Carbon::parse('next tuesday')->addWeeks(4)->format('Y-m-d'); // 2 days
 
         // Create approved annual leave request
         $leaveRequest = LeaveRequest::create([
@@ -387,7 +384,7 @@ class LeaveRequestTest extends TestCase
 
         // Adjust initial balance to simulate deduction
         $this->oldEmployee->decrement('leave_balance', 2);
-        $this->assertEquals(10, $this->oldEmployee->fresh()->leave_balance);
+        $this->assertEquals(10.0, $this->oldEmployee->fresh()->leave_balance);
 
         // Delete as owner
         $response = $this->actingAs($this->ownerUser)
@@ -400,7 +397,60 @@ class LeaveRequestTest extends TestCase
             ]);
 
         // Verify balance refunded and record deleted
-        $this->assertEquals(12, $this->oldEmployee->fresh()->leave_balance);
+        $this->assertEquals(12.0, $this->oldEmployee->fresh()->leave_balance);
         $this->assertDatabaseMissing('leave_requests', ['id' => $leaveRequest->id]);
+    }
+
+    /**
+     * Test Saturday counts as 0.5 days, Sunday & public holidays count as 0.0, Weekdays count as 1.0.
+     */
+    public function test_leave_duration_calculation_rules()
+    {
+        // 1. Monday to Saturday (5 weekdays + 1 Saturday) = 5.5 days
+        $monToSat = LeaveRequest::create([
+            'employee_id' => $this->oldEmployee->id,
+            'type' => 'annual_leave',
+            'start_date' => '2026-07-06', // Monday
+            'end_date' => '2026-07-11', // Saturday
+            'reason' => 'Test',
+        ]);
+        $this->assertEquals(5.5, $monToSat->duration_days);
+
+        // 2. Saturday only = 0.5 days
+        $satOnly = LeaveRequest::create([
+            'employee_id' => $this->oldEmployee->id,
+            'type' => 'annual_leave',
+            'start_date' => '2026-07-11', // Saturday
+            'end_date' => '2026-07-11', // Saturday
+            'reason' => 'Test',
+        ]);
+        $this->assertEquals(0.5, $satOnly->duration_days);
+
+        // 3. Sunday only = 0.0 days
+        $sunOnly = LeaveRequest::create([
+            'employee_id' => $this->oldEmployee->id,
+            'type' => 'annual_leave',
+            'start_date' => '2026-07-12', // Sunday
+            'end_date' => '2026-07-12', // Sunday
+            'reason' => 'Test',
+        ]);
+        $this->assertEquals(0.0, $sunOnly->duration_days);
+
+        // 4. Including public holiday (2026-07-07 Tuesday)
+        \App\Models\Holiday::create([
+            'name' => 'Test Holiday',
+            'date' => '2026-07-07',
+        ]);
+
+        // Monday 2026-07-06 to Wednesday 2026-07-08
+        // Normally 3 days, but Tuesday is a holiday, so 2 days.
+        $withHoliday = LeaveRequest::create([
+            'employee_id' => $this->oldEmployee->id,
+            'type' => 'annual_leave',
+            'start_date' => '2026-07-06',
+            'end_date' => '2026-07-08',
+            'reason' => 'Test',
+        ]);
+        $this->assertEquals(2.0, $withHoliday->duration_days);
     }
 }

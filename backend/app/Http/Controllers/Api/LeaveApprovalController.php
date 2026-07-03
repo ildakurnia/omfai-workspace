@@ -73,7 +73,7 @@ class LeaveApprovalController extends Controller
         $employee = $leaveRequest->employee;
         $startDate = Carbon::parse($leaveRequest->start_date);
         $endDate = Carbon::parse($leaveRequest->end_date);
-        $requestedDays = $startDate->diffInDays($endDate) + 1;
+        $requestedDays = $leaveRequest->duration_days;
 
         // If it's annual leave, double check if balance is still sufficient
         if ($leaveRequest->type === 'annual_leave') {
@@ -164,7 +164,7 @@ class LeaveApprovalController extends Controller
         $employee = $leaveRequest->employee;
         $startDate = Carbon::parse($leaveRequest->start_date);
         $endDate = Carbon::parse($leaveRequest->end_date);
-        $requestedDays = $startDate->diffInDays($endDate) + 1;
+        $requestedDays = $leaveRequest->duration_days;
 
         // Update status to rejected
         $leaveRequest->update([
@@ -227,7 +227,7 @@ class LeaveApprovalController extends Controller
             $employee = $leaveRequest->employee;
             $startDate = Carbon::parse($leaveRequest->start_date);
             $endDate = Carbon::parse($leaveRequest->end_date);
-            $requestedDays = $startDate->diffInDays($endDate) + 1;
+            $requestedDays = $leaveRequest->duration_days;
             
             $employee->increment('leave_balance', $requestedDays);
         }

@@ -47,7 +47,12 @@ class LeaveApiController extends Controller
         $type = $request->type;
         $startDate = Carbon::parse($request->start_date);
         $endDate = Carbon::parse($request->end_date);
-        $requestedDays = $startDate->diffInDays($endDate) + 1;
+        
+        $tempLeaveRequest = new LeaveRequest([
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
+        ]);
+        $requestedDays = $tempLeaveRequest->duration_days;
 
         // Overlapping leave requests check (Pending or Approved)
         $overlappingLeave = LeaveRequest::where('employee_id', $employee->id)

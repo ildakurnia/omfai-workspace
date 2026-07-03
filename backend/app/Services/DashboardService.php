@@ -50,6 +50,7 @@ class DashboardService
                     'feedbackAt' => $activity['feedback_at'] ? $activity['feedback_at']->toIso8601String() : null,
                     'status' => $activity['status']->value,
                     'holdReason' => $activity['hold_reason'],
+                    'proofImageUrl' => $activity['proof_image_url'],
                     'createdAt' => $activity['created_at']->toIso8601String(),
                     'completedAt' => $activity['completed_at'] ? $activity['completed_at']->toIso8601String() : null,
                     'updatedAt' => $activity['updated_at']->toIso8601String(),
@@ -63,7 +64,7 @@ class DashboardService
             });
 
         // 4. Aktivitas yang sedang On Hold (menampilkan Kendala / Hold Reason)
-        $onHoldActivities = Activity::with('user')
+        $onHoldActivities = Activity::with(['user', 'category'])
             ->where('status', ActivityStatusEnum::ON_HOLD->value)
             ->where('hold_reason', 'not like', 'Auto-pause%')
             ->where('hold_reason', 'not like', 'Auto-stop%')
@@ -77,8 +78,12 @@ class DashboardService
                     'id' => $activity['id'],
                     'employeeName' => $activity['user']['name'] ?? 'N/A',
                     'employeeAvatarUrl' => ($activity['user']['avatar'] ?? null) ? asset('storage/' . $activity['user']['avatar']) : null,
+                    'categoryName' => $activity['category']['name'] ?? 'N/A',
                     'activity' => $activity['activity'],
+                    'status' => $activity['status']->value,
                     'holdReason' => $activity['hold_reason'],
+                    'referenceLink' => $activity['reference_link'],
+                    'proofImageUrl' => $activity['proof_image_url'],
                     'updatedAt' => $activity['updated_at']->toIso8601String(),
                 ];
             });
