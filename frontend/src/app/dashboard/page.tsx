@@ -1173,7 +1173,17 @@ export default function DashboardPage() {
                           Buka Link Bukti
                         </a>
                       )}
-                      {!act.hold_reason && !act.reference_link && "-"}
+                      {act.proof_image_url && (
+                        <a 
+                          href={act.proof_image_url} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="text-[#FF8200] hover:underline font-bold block mt-1"
+                        >
+                          🖼️ Lihat Foto Bukti
+                        </a>
+                      )}
+                      {!act.hold_reason && !act.reference_link && !act.proof_image_url && "-"}
                     </td>
                   </tr>
                 ))}
