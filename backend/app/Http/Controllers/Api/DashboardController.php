@@ -62,6 +62,11 @@ class DashboardController extends Controller
             \Illuminate\Support\Facades\Artisan::call('view:clear');
             \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
 
+            // Buat symbolic link untuk folder storage agar file upload bisa diakses publik
+            if (!file_exists(public_path('storage'))) {
+                \Illuminate\Support\Facades\Artisan::call('storage:link');
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Cache Laravel & migrasi database berhasil diperbarui!'
