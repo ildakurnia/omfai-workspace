@@ -100,7 +100,7 @@ export default function ReviewModal({ isOpen, onClose, activity, onSuccess }: Re
                 {activity.categoryName || activity.category?.name}
               </span>
               <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider">
-                Status: {activity.status.replace("_", " ")}
+                Status: {(activity.status || "").replace("_", " ")}
               </span>
             </div>
           </div>
