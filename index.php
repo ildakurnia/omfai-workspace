@@ -14,6 +14,17 @@ if (strpos($uri, '/api') === 0 || $uri === '/api') {
     exit;
 }
 
+// 1b. Arahkan request asset storage Laravel ke public Laravel
+if (strpos($uri, '/storage') === 0) {
+    $storageFile = __DIR__ . '/backend/public' . $uri;
+    if (file_exists($storageFile) && !is_dir($storageFile)) {
+        $mime = mime_content_type($storageFile);
+        header("Content-Type: $mime");
+        readfile($storageFile);
+        exit;
+    }
+}
+
 // 2. Arahkan asset statis Next.js (jika filenya ada di frontend/out)
 $staticFile = __DIR__ . '/frontend/out' . $uri;
 if ($uri !== '/' && file_exists($staticFile) && !is_dir($staticFile)) {
