@@ -40,4 +40,4 @@ jobs:
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         local-dir: frontend/out/
-        server-dir: /public_html/frontend/out/ # Sesuai dengan pembacaan index.php root cPanel Anda
+        server-dir: /frontend/out/ # Relatif jika akun FTP Anda sudah dikunci di dalam folder public_html
