@@ -470,7 +470,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Filter Tabs */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 border-b border-zinc-100 pb-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 border-b border-zinc-100 pb-4">
               <button
                 onClick={() => setActiveAttendanceTab("present")}
                 className={`px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
@@ -516,6 +516,22 @@ export default function DashboardPage() {
                 }`}>Cuti / Izin</span>
                 <span className="text-3xl font-extrabold mt-1">
                   {data.attendanceSummary.leaveCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveAttendanceTab("wh_permission")}
+                className={`px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                  activeAttendanceTab === "wh_permission"
+                    ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                    : "bg-purple-50/50 text-purple-850 border-purple-100 hover:bg-purple-50"
+                }`}
+              >
+                <span className={`text-[10px] uppercase tracking-wider font-bold ${
+                  activeAttendanceTab === "wh_permission" ? "text-white" : "text-purple-700"
+                }`}>Izin Jam Kerja</span>
+                <span className="text-3xl font-extrabold mt-1">
+                  {data.attendanceSummary.whPermissionCount || 0}
                 </span>
               </button>
 
@@ -588,6 +604,8 @@ export default function DashboardPage() {
                                   ? "bg-amber-50 text-amber-700 border-amber-100"
                                   : item.status === "leave"
                                   ? "bg-blue-50 text-blue-700 border-blue-100"
+                                  : item.status === "wh_permission"
+                                  ? "bg-purple-50 text-purple-700 border-purple-100"
                                   : "bg-rose-50 text-rose-700 border-rose-100"
                               }`}
                             >

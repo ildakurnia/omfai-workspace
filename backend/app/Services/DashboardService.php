@@ -107,12 +107,17 @@ class DashboardService
                 $q->where('status', 'approved')
                   ->whereDate('start_date', '<=', $today)
                   ->whereDate('end_date', '>=', $today);
+            },
+            'workHourPermissions' => function ($q) use ($today) {
+                $q->where('status', 'approved')
+                  ->whereDate('date', $today);
             }
         ])->get();
 
         $onTimeCount = 0;
         $lateCount = 0;
         $leaveCount = 0;
+        $whPermissionCount = 0;
         $absentCount = 0;
 
         $todayAttendanceDetails = [];
@@ -122,6 +127,7 @@ class DashboardService
         foreach ($employees as $emp) {
             $attendance = $emp->attendances->first();
             $leave = $emp->leaveRequests->first();
+            $whPermission = $emp->workHourPermissions->first();
 
             $status = 'absent';
             $statusLabel = 'Belum Absen';
@@ -136,6 +142,28 @@ class DashboardService
                 $checkOut = $attendance->check_out ? substr($attendance->check_out, 0, 5) : '-';
                 $checkInRaw = $attendance->check_in;
 
+                if ($attendance->status === 'late') {
+                    // Hitung durasi keterlambatan dalam menit (dari jam 08:00:00)
+                    if ($attendance->check_in) {
+                        $checkInCarbon = Carbon::parse($today . ' ' . $attendance->check_in);
+                        $shiftStartCarbon = Carbon::parse($today . ' 08:00:00');
+                        $diff = $shiftStartCarbon->diffInMinutes($checkInCarbon, false);
+                        $lateMinutes = max(0, $diff);
+                    }
+                }
+            }
+
+            if ($whPermission) {
+                $status = 'wh_permission';
+                $whPermissionCount++;
+                if ($whPermission->type === 'arrive_late') {
+                    $statusLabel = 'Izin Terlambat';
+                } else if ($whPermission->type === 'leave_early') {
+                    $statusLabel = 'Izin Pulang Cepat';
+                } else {
+                    $statusLabel = 'Izin Keluar Sementara';
+                }
+            } else if ($attendance) {
                 if ($attendance->status === 'present') {
                     $status = 'present';
                     $statusLabel = 'Hadir Tepat Waktu';
@@ -152,14 +180,6 @@ class DashboardService
                     $status = 'late';
                     $statusLabel = 'Terlambat';
                     $lateCount++;
-
-                    // Hitung durasi keterlambatan dalam menit (dari jam 08:00:00)
-                    if ($attendance->check_in) {
-                        $checkInCarbon = Carbon::parse($today . ' ' . $attendance->check_in);
-                        $shiftStartCarbon = Carbon::parse($today . ' 08:00:00');
-                        $diff = $shiftStartCarbon->diffInMinutes($checkInCarbon, false);
-                        $lateMinutes = max(0, $diff);
-                    }
                 }
             } else if ($leave) {
                 $status = 'leave';
@@ -278,6 +298,7 @@ class DashboardService
                 'onTimeCount' => $onTimeCount,
                 'lateCount' => $lateCount,
                 'leaveCount' => $leaveCount,
+                'whPermissionCount' => $whPermissionCount,
                 'absentCount' => $absentCount,
                 'details' => $todayAttendanceDetails,
             ],
