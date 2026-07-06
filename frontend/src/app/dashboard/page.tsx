@@ -26,6 +26,7 @@ import {
   Ban,
   MessageSquare,
   RefreshCw,
+  Timer,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import ReviewModal from "@/components/review-modal";
@@ -34,7 +35,7 @@ import { formatDuration, formatActiveDuration, formatIndonesianDate, toLocalDate
 import AlertModal from "@/components/alert-modal";
 
 // Helper to generate the monthly grid and calculate attendance statuses
-const generateMonthlyGrid = (monthStr: string, attendances: any[], leaves: any[], holidays: any[]) => {
+const generateMonthlyGrid = (monthStr: string, attendances: any[], leaves: any[], holidays: any[], whPermissions: any[] = []) => {
   if (!monthStr) return [];
   const [year, month] = monthStr.split("-").map(Number);
   const date = new Date(year, month - 1, 1);
@@ -54,6 +55,9 @@ const generateMonthlyGrid = (monthStr: string, attendances: any[], leaves: any[]
     const attendance = (attendances || []).find((a: any) => a.date === dayStr);
     const leave = (leaves || []).find((l: any) => {
       return dayStr >= l.start_date && dayStr <= l.end_date && l.status === "approved";
+    });
+    const whPermission = (whPermissions || []).find((w: any) => {
+      return w.date === dayStr && w.status === "approved";
     });
 
     let status = "-";
@@ -79,7 +83,7 @@ const generateMonthlyGrid = (monthStr: string, attendances: any[], leaves: any[]
       status = "future";
     }
 
-    return { status };
+    return { status, whPermissionId: whPermission ? whPermission.id : null };
   });
 };
 
@@ -201,6 +205,16 @@ export default function DashboardPage() {
     queryKey: ["leaveHistory"],
     queryFn: async () => {
       const res = await api.get("/history-cuti");
+      return res.data;
+    },
+    enabled: !!isEmployee,
+  });
+
+  // Query: Ambil riwayat izin jam kerja login karyawan
+  const { data: workHourPermissions, isLoading: workHourPermissionsLoading } = useQuery({
+    queryKey: ["workHourPermissionsHistory"],
+    queryFn: async () => {
+      const res = await api.get("/work-hour-permissions");
       return res.data;
     },
     enabled: !!isEmployee,
@@ -909,12 +923,13 @@ export default function DashboardPage() {
   // Hitung statistik absensi karyawan untuk bulan berjalan saat ini
   const currentMonthStr = new Date().toISOString().slice(0, 7); // e.g. "2026-06"
   const dashboardEmployeeGrid = isEmployee
-    ? generateMonthlyGrid(currentMonthStr, attendanceHistory?.data || [], leaveHistory?.data || [], holidaysData || [])
+    ? generateMonthlyGrid(currentMonthStr, attendanceHistory?.data || [], leaveHistory?.data || [], holidaysData || [], workHourPermissions?.data || [])
     : [];
 
   const totalPresent = dashboardEmployeeGrid.filter((d: any) => d.status === "present").length;
   const totalLate = dashboardEmployeeGrid.filter((d: any) => d.status === "late").length;
   const totalLeave = dashboardEmployeeGrid.filter((d: any) => ["annual_leave", "sick_leave", "permission"].includes(d.status)).length;
+  const totalWhPermissions = dashboardEmployeeGrid.filter((d: any) => d.whPermissionId !== null).length;
   const totalAbsent = dashboardEmployeeGrid.filter((d: any) => d.status === "absent").length;
 
   // Check if today is approved leave day
@@ -1038,7 +1053,7 @@ export default function DashboardPage() {
           Rekap Absensi Bulan Ini ({new Date().toLocaleDateString("id-ID", { month: "long", year: "numeric" })})
         </h3>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
             <div className="space-y-1.5">
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tepat Waktu</span>
@@ -1070,6 +1085,16 @@ export default function DashboardPage() {
           </div>
 
           <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Izin Jam Kerja</span>
+              <div className="text-2xl font-extrabold text-purple-600">{totalWhPermissions} Hari</div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
+              <Timer className="h-5 w-5" />
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm col-span-2 md:col-span-1">
             <div className="space-y-1.5">
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tidak Hadir</span>
               <div className="text-2xl font-extrabold text-rose-600">{totalAbsent} Hari</div>

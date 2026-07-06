@@ -22,6 +22,7 @@ import {
   Filter,
   CalendarX,
   Moon,
+  Timer,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import api from "@/lib/api";
@@ -73,6 +74,14 @@ export default function AttendanceLeavePage() {
   // Absen submission GPS loading/error states
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+
+  // Filter state for attendance grid
+  const [attendanceFilter, setAttendanceFilter] = useState<"present" | "late" | "leave" | "wh_permission" | "absent" | null>(null);
+
+  // Reset filter on month or employee change
+  useEffect(() => {
+    setAttendanceFilter(null);
+  }, [selectedMonth, selectedEmployeeId]);
 
   // Custom Alert & Confirm Modals State
   const [alertConfig, setAlertConfig] = useState<{
@@ -944,6 +953,8 @@ export default function AttendanceLeavePage() {
     ["annual_leave", "sick_leave", "permission"].includes(d.status)
   ).length;
 
+  const totalWhPermissions = employeeGrid.filter((d: any) => d.whPermissionId !== null).length;
+
   const totalAbsent = employeeGrid.filter((d: any) => d.status === "absent").length;
 
   // Generate grid for admin report view
@@ -969,7 +980,42 @@ export default function AttendanceLeavePage() {
     ["annual_leave", "sick_leave", "permission"].includes(d.status)
   ).length;
 
+  const adminTotalWhPermissions = adminSelectedGrid.filter((d: any) => d.whPermissionId !== null).length;
+
   const adminTotalAbsent = adminSelectedGrid.filter((d: any) => d.status === "absent").length;
+
+  const filterGrid = (grid: any[]) => {
+    if (!attendanceFilter) return grid;
+    return grid.filter((d: any) => {
+      switch (attendanceFilter) {
+        case "present":
+          return (
+            d.status === "present" || 
+            d.status === "leave_early" || 
+            d.status === "out_temporary" || 
+            d.statusLabel.startsWith("Hadir") || 
+            d.statusLabel.startsWith("Pulang Cepat")
+          );
+        case "late":
+          return (
+            d.status === "late" || 
+            d.status === "arrive_late" || 
+            d.statusLabel.startsWith("Terlambat")
+          );
+        case "leave":
+          return ["annual_leave", "sick_leave", "permission"].includes(d.status);
+        case "wh_permission":
+          return d.whPermissionId !== null;
+        case "absent":
+          return d.status === "absent";
+        default:
+          return true;
+      }
+    });
+  };
+
+  const filteredEmployeeGrid = filterGrid(employeeGrid);
+  const filteredAdminSelectedGrid = filterGrid(adminSelectedGrid);
 
   const totalAdminOvertimeMinutes = React.useMemo(() => {
     return (adminSelectedEmpActivities || []).reduce((acc: number, act: any) => {
@@ -1159,8 +1205,17 @@ export default function AttendanceLeavePage() {
               </div>
 
               {/* Rekap Absensi Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-2">
-                <div className="bg-zinc-50/50 rounded-xl border border-zinc-100 p-4 flex items-center justify-between shadow-sm">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 pb-2">
+                <div
+                  onClick={() => setAttendanceFilter(attendanceFilter === "present" ? null : "present")}
+                  className={`transition-all duration-200 cursor-pointer rounded-xl border p-4 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                    attendanceFilter === "present"
+                      ? "border-emerald-500 ring-2 ring-emerald-500/10 bg-emerald-50/30"
+                      : attendanceFilter
+                      ? "opacity-50 border-zinc-100 bg-zinc-50/50"
+                      : "border-zinc-100 bg-zinc-50/50"
+                  }`}
+                >
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tepat Waktu</span>
                     <div className="text-xl font-extrabold text-emerald-600">{totalPresent} Hari</div>
@@ -1170,7 +1225,16 @@ export default function AttendanceLeavePage() {
                   </div>
                 </div>
 
-                <div className="bg-zinc-50/50 rounded-xl border border-zinc-100 p-4 flex items-center justify-between shadow-sm">
+                <div
+                  onClick={() => setAttendanceFilter(attendanceFilter === "late" ? null : "late")}
+                  className={`transition-all duration-200 cursor-pointer rounded-xl border p-4 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                    attendanceFilter === "late"
+                      ? "border-amber-500 ring-2 ring-amber-500/10 bg-amber-50/30"
+                      : attendanceFilter
+                      ? "opacity-50 border-zinc-100 bg-zinc-50/50"
+                      : "border-zinc-100 bg-zinc-50/50"
+                  }`}
+                >
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Terlambat</span>
                     <div className="text-xl font-extrabold text-amber-600">{totalLate} Hari</div>
@@ -1180,7 +1244,16 @@ export default function AttendanceLeavePage() {
                   </div>
                 </div>
 
-                <div className="bg-zinc-50/50 rounded-xl border border-zinc-100 p-4 flex items-center justify-between shadow-sm">
+                <div
+                  onClick={() => setAttendanceFilter(attendanceFilter === "leave" ? null : "leave")}
+                  className={`transition-all duration-200 cursor-pointer rounded-xl border p-4 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                    attendanceFilter === "leave"
+                      ? "border-blue-500 ring-2 ring-blue-500/10 bg-blue-50/30"
+                      : attendanceFilter
+                      ? "opacity-50 border-zinc-100 bg-zinc-50/50"
+                      : "border-zinc-100 bg-zinc-50/50"
+                  }`}
+                >
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Izin & Cuti</span>
                     <div className="text-xl font-extrabold text-blue-600">{totalLeave} Hari</div>
@@ -1190,7 +1263,35 @@ export default function AttendanceLeavePage() {
                   </div>
                 </div>
 
-                <div className="bg-zinc-50/50 rounded-xl border border-zinc-100 p-4 flex items-center justify-between shadow-sm">
+                <div
+                  onClick={() => setAttendanceFilter(attendanceFilter === "wh_permission" ? null : "wh_permission")}
+                  className={`transition-all duration-200 cursor-pointer rounded-xl border p-4 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                    attendanceFilter === "wh_permission"
+                      ? "border-purple-500 ring-2 ring-purple-500/10 bg-purple-50/30"
+                      : attendanceFilter
+                      ? "opacity-50 border-zinc-100 bg-zinc-50/50"
+                      : "border-zinc-100 bg-zinc-50/50"
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Izin Jam Kerja</span>
+                    <div className="text-xl font-extrabold text-purple-600">{totalWhPermissions} Hari</div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
+                    <Timer className="h-4 w-4" />
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setAttendanceFilter(attendanceFilter === "absent" ? null : "absent")}
+                  className={`transition-all duration-200 cursor-pointer rounded-xl border p-4 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 col-span-2 md:col-span-1 ${
+                    attendanceFilter === "absent"
+                      ? "border-rose-500 ring-2 ring-rose-500/10 bg-rose-50/30"
+                      : attendanceFilter
+                      ? "opacity-50 border-zinc-100 bg-zinc-50/50"
+                      : "border-zinc-100 bg-zinc-50/50"
+                  }`}
+                >
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tidak Hadir</span>
                     <div className="text-xl font-extrabold text-rose-600">{totalAbsent} Hari</div>
@@ -1200,6 +1301,22 @@ export default function AttendanceLeavePage() {
                   </div>
                 </div>
               </div>
+
+              {/* Filter Alert Message */}
+              {attendanceFilter && (
+                <div className="bg-zinc-50 border border-zinc-150 rounded-xl p-2.5 px-4 flex items-center justify-between text-xs text-zinc-700 shadow-sm transition-all duration-250">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#FF8200] animate-pulse"></span>
+                    Menampilkan hasil filter: <span className="font-bold text-[#FF8200] capitalize">{attendanceFilter === "wh_permission" ? "Izin Jam Kerja" : attendanceFilter === "leave" ? "Izin & Cuti" : attendanceFilter.replace("_", " ")}</span> ({filteredEmployeeGrid.length} Hari)
+                  </div>
+                  <button
+                    onClick={() => setAttendanceFilter(null)}
+                    className="text-[10px] bg-zinc-200 hover:bg-zinc-300 text-zinc-700 px-2.5 py-1 rounded-lg font-bold cursor-pointer transition-all border border-zinc-300"
+                  >
+                    Clear Filter
+                  </button>
+                </div>
+              )}
 
               {/* Grid Bulanan */}
               <div className="border border-zinc-150 rounded-xl overflow-hidden shadow-sm">
@@ -1220,7 +1337,7 @@ export default function AttendanceLeavePage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
-                        {employeeGrid.map((day: any) => {
+                        {filteredEmployeeGrid.map((day: any) => {
                           const showLeaveButton = day.checkIn === "-" && !day.isPast && !["annual_leave", "sick_leave", "permission", "weekend", "holiday"].includes(day.status);
                           
                           return (
@@ -1490,8 +1607,17 @@ export default function AttendanceLeavePage() {
 
               {/* Rekap Absensi Stats Grid Admin */}
               {selectedEmployeeId && !adminSelectedEmpLoading && (
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div className="bg-zinc-50/30 overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  <div
+                    onClick={() => setAttendanceFilter(attendanceFilter === "present" ? null : "present")}
+                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                      attendanceFilter === "present"
+                        ? "border-emerald-500 ring-2 ring-emerald-500/10 bg-emerald-50/20"
+                        : attendanceFilter
+                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                        : "border-zinc-150 bg-zinc-50/30"
+                    }`}
+                  >
                     <div className="space-y-1.5">
                       <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tepat Waktu</span>
                       <div className="text-xl font-extrabold text-emerald-600">{adminTotalPresent} Hari</div>
@@ -1501,7 +1627,16 @@ export default function AttendanceLeavePage() {
                     </div>
                   </div>
 
-                  <div className="bg-zinc-50/30 overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
+                  <div
+                    onClick={() => setAttendanceFilter(attendanceFilter === "late" ? null : "late")}
+                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                      attendanceFilter === "late"
+                        ? "border-amber-500 ring-2 ring-amber-500/10 bg-amber-50/20"
+                        : attendanceFilter
+                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                        : "border-zinc-150 bg-zinc-50/30"
+                    }`}
+                  >
                     <div className="space-y-1.5">
                       <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Terlambat</span>
                       <div className="text-xl font-extrabold text-amber-600">{adminTotalLate} Hari</div>
@@ -1511,7 +1646,16 @@ export default function AttendanceLeavePage() {
                     </div>
                   </div>
 
-                  <div className="bg-zinc-50/30 overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
+                  <div
+                    onClick={() => setAttendanceFilter(attendanceFilter === "leave" ? null : "leave")}
+                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                      attendanceFilter === "leave"
+                        ? "border-blue-500 ring-2 ring-blue-500/10 bg-blue-50/20"
+                        : attendanceFilter
+                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                        : "border-zinc-150 bg-zinc-50/30"
+                    }`}
+                  >
                     <div className="space-y-1.5">
                       <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Izin & Cuti</span>
                       <div className="text-xl font-extrabold text-blue-600">{adminTotalLeave} Hari</div>
@@ -1521,7 +1665,35 @@ export default function AttendanceLeavePage() {
                     </div>
                   </div>
 
-                  <div className="bg-zinc-50/30 overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
+                  <div
+                    onClick={() => setAttendanceFilter(attendanceFilter === "wh_permission" ? null : "wh_permission")}
+                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                      attendanceFilter === "wh_permission"
+                        ? "border-purple-500 ring-2 ring-purple-500/10 bg-purple-50/20"
+                        : attendanceFilter
+                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                        : "border-zinc-150 bg-zinc-50/30"
+                    }`}
+                  >
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Izin Jam Kerja</span>
+                      <div className="text-xl font-extrabold text-purple-600">{adminTotalWhPermissions} Hari</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
+                      <Timer className="h-5 w-5" />
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => setAttendanceFilter(attendanceFilter === "absent" ? null : "absent")}
+                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                      attendanceFilter === "absent"
+                        ? "border-rose-500 ring-2 ring-rose-500/10 bg-rose-50/20"
+                        : attendanceFilter
+                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                        : "border-zinc-150 bg-zinc-50/30"
+                    }`}
+                  >
                     <div className="space-y-1.5">
                       <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tidak Hadir</span>
                       <div className="text-xl font-extrabold text-rose-600">{adminTotalAbsent} Hari</div>
@@ -1531,7 +1703,11 @@ export default function AttendanceLeavePage() {
                     </div>
                   </div>
 
-                  <div className="bg-zinc-50/30 overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm">
+                  <div
+                    className={`transition-all duration-200 overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm ${
+                      attendanceFilter ? "opacity-50" : ""
+                    }`}
+                  >
                     <div className="space-y-1.5">
                       <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Lembur</span>
                       <div className="text-xl font-extrabold text-amber-600">
@@ -1546,6 +1722,22 @@ export default function AttendanceLeavePage() {
                       <Moon className="h-5 w-5" />
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Filter Alert Message Admin */}
+              {attendanceFilter && (
+                <div className="bg-zinc-50 border border-zinc-150 rounded-xl p-2.5 px-4 flex items-center justify-between text-xs text-zinc-700 shadow-sm transition-all duration-250 mb-4">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#FF8200] animate-pulse"></span>
+                    Menampilkan hasil filter: <span className="font-bold text-[#FF8200] capitalize">{attendanceFilter === "wh_permission" ? "Izin Jam Kerja" : attendanceFilter === "leave" ? "Izin & Cuti" : attendanceFilter.replace("_", " ")}</span> ({filteredAdminSelectedGrid.length} Hari)
+                  </div>
+                  <button
+                    onClick={() => setAttendanceFilter(null)}
+                    className="text-[10px] bg-zinc-200 hover:bg-zinc-300 text-zinc-700 px-2.5 py-1 rounded-lg font-bold cursor-pointer transition-all border border-zinc-300"
+                  >
+                    Clear Filter
+                  </button>
                 </div>
               )}
 
@@ -1570,7 +1762,7 @@ export default function AttendanceLeavePage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
-                        {adminSelectedGrid.map((day: any) => (
+                        {filteredAdminSelectedGrid.map((day: any) => (
                           <tr key={day.dateString} className="hover:bg-zinc-50/30">
                             <td className="p-3.5">
                               <div className="font-bold text-zinc-900">{day.formattedDay}</div>
