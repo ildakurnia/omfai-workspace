@@ -860,6 +860,30 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Review Modal for Owner */}
+        {roles.includes("Owner") && (
+          <ReviewModal
+            isOpen={isReviewOpen}
+            onClose={() => {
+              setIsReviewOpen(false);
+              setReviewActivity(null);
+            }}
+            activity={reviewActivity}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+            }}
+          />
+        )}
+
+        {/* Custom Alert Modal */}
+        <AlertModal
+          isOpen={alertConfig.isOpen}
+          onClose={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          variant={alertConfig.variant}
+        />
       </DashboardLayout>
     );
   }
