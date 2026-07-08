@@ -25,11 +25,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/upload-avatar', [AuthController::class, 'uploadAvatar']);
 
-    // User Management (Index untuk Owner/Admin, detail & modifikasi Admin Only)
+    // User Management (Index & Show untuk Owner/Admin, modifikasi Admin Only)
     Route::get('/users', [UserController::class, 'index'])->middleware('role:Owner|Admin');
+    Route::get('/users/{user}', [UserController::class, 'show'])->middleware('role:Owner|Admin');
     Route::middleware('role:Admin')->group(function () {
         Route::post('/users', [UserController::class, 'store']);
-        Route::get('/users/{user}', [UserController::class, 'show']);
         Route::put('/users/{user}', [UserController::class, 'update']);
         Route::delete('/users/{user}', [UserController::class, 'destroy']);
         Route::post('/admin/clear-cache', [DashboardController::class, 'clearCache']);
@@ -68,6 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Attendance & Geofencing Module
     Route::post('/absen', [AttendanceApiController::class, 'tap']);
+    Route::post('/istirahat', [AttendanceApiController::class, 'istirahat']);
     Route::get('/history-absen', [AttendanceApiController::class, 'history']);
     Route::get('/geofences', [GeofenceApiController::class, 'index']);
 

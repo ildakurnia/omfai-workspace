@@ -137,9 +137,14 @@ class DashboardService
             $leaveType = null;
             $checkInRaw = null;
 
+            $breakStart = '-';
+            $breakEnd = '-';
+
             if ($attendance) {
                 $checkIn = $attendance->check_in ? substr($attendance->check_in, 0, 5) : '-';
                 $checkOut = $attendance->check_out ? substr($attendance->check_out, 0, 5) : '-';
+                $breakStart = $attendance->break_start ? substr($attendance->break_start, 0, 5) : '-';
+                $breakEnd = $attendance->break_end ? substr($attendance->break_end, 0, 5) : '-';
                 $checkInRaw = $attendance->check_in;
 
                 if ($attendance->status === 'late') {
@@ -207,6 +212,8 @@ class DashboardService
                 'status_label' => $statusLabel,
                 'check_in' => $checkIn,
                 'check_out' => $checkOut,
+                'break_start' => $breakStart,
+                'break_end' => $breakEnd,
                 'check_in_raw' => $checkInRaw,
                 'late_minutes' => $lateMinutes,
                 'leave_type' => $leaveType,

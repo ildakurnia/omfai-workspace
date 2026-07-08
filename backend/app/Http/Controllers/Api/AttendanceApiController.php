@@ -195,13 +195,44 @@ class AttendanceApiController extends Controller
             ->orderBy('date', 'desc')
             ->get();
 
+        // Get earliest check-in time for each date in history
+        $dates = $history->pluck('date')->map(function($d) {
+            return $d instanceof \Carbon\Carbon ? $d->toDateString() : $d;
+        })->unique()->toArray();
+
+        $earliestCheckIns = Attendance::whereIn('date', $dates)
+            ->whereNotNull('check_in')
+            ->whereIn('status', ['present', 'late'])
+            ->select('date', \DB::raw('MIN(check_in) as min_check_in'))
+            ->groupBy('date')
+            ->get()
+            ->mapWithKeys(function ($item) {
+                $dateStr = $item->date instanceof \Carbon\Carbon ? $item->date->toDateString() : (string)$item->date;
+                return [$dateStr => $item->min_check_in];
+            })
+            ->toArray();
+
+        $historyData = $history->map(function ($attendance) use ($earliestCheckIns) {
+            $dateStr = $attendance->date instanceof \Carbon\Carbon ? $attendance->date->toDateString() : (string)$attendance->date;
+            $minCheckIn = $earliestCheckIns[$dateStr] ?? null;
+            
+            $isEarliest = false;
+            if ($attendance->check_in && $minCheckIn && $attendance->check_in === $minCheckIn) {
+                $isEarliest = true;
+            }
+
+            $arr = $attendance->toArray();
+            $arr['is_earliest'] = $isEarliest;
+            return $arr;
+        });
+
         // Calculate statistics
         $totalPresent = $history->where('status', 'present')->count();
         $totalLate = $history->where('status', 'late')->count();
 
         return response()->json([
             'success' => true,
-            'data' => $history,
+            'data' => $historyData,
             'summary' => [
                 'total_present' => $totalPresent,
                 'total_late' => $totalLate,
@@ -239,6 +270,82 @@ class AttendanceApiController extends Controller
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
 
         return $earthRadius * $c;
+    }
+
+    /**
+     * Record start or end break time for today.
+     */
+    public function istirahat(Request $request)
+    {
+        $user = Auth::user();
+        $employee = $user->employee;
+
+        if (!$employee) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee profile not found.'
+            ], 404);
+        }
+
+        $now = Carbon::now();
+        $today = $now->toDateString();
+        $currentTime = $now->toTimeString();
+
+        // Check if attendance record exists for today
+        $attendance = Attendance::where('employee_id', $employee->id)
+            ->whereDate('date', $today)
+            ->first();
+
+        if (!$attendance) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda harus melakukan Absen Masuk terlebih dahulu.'
+            ], 403);
+        }
+
+        if ($attendance->check_out) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda sudah melakukan Absen Pulang hari ini.'
+            ], 403);
+        }
+
+        // Limit break_start to be clicked only after 12:00
+        if (!$attendance->break_start && $currentTime < '12:00:00') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Istirahat hanya diperbolehkan setelah jam 12:00 siang.'
+            ], 403);
+        }
+
+        if (!$attendance->break_start) {
+            // Start break
+            $attendance->update([
+                'break_start' => $currentTime
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Selamat beristirahat.',
+                'data' => $attendance
+            ]);
+        } elseif (!$attendance->break_end) {
+            // End break
+            $attendance->update([
+                'break_end' => $currentTime
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Selamat kembali bekerja.',
+                'data' => $attendance
+            ]);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda sudah menyelesaikan istirahat hari ini.'
+            ], 403);
+        }
     }
 
     /**

@@ -23,6 +23,8 @@ import {
   CalendarX,
   Moon,
   Timer,
+  Coffee,
+  Trophy,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import api from "@/lib/api";
@@ -76,7 +78,7 @@ export default function AttendanceLeavePage() {
   const [gpsError, setGpsError] = useState<string | null>(null);
 
   // Filter state for attendance grid
-  const [attendanceFilter, setAttendanceFilter] = useState<"present" | "late" | "leave" | "wh_permission" | "absent" | null>(null);
+  const [attendanceFilter, setAttendanceFilter] = useState<"present" | "late" | "leave" | "wh_permission" | "absent" | "earliest" | null>(null);
 
   // Reset filter on month or employee change
   useEffect(() => {
@@ -297,7 +299,7 @@ export default function AttendanceLeavePage() {
   // Set default selected employee for Admin
   useEffect(() => {
     if (employees && employees.length > 0 && !selectedEmployeeId) {
-      setSelectedEmployeeId(employees[0].employee.id.toString());
+      setSelectedEmployeeId(employees[0].id.toString());
     }
   }, [employees, selectedEmployeeId]);
 
@@ -306,9 +308,8 @@ export default function AttendanceLeavePage() {
     queryKey: ["adminSelectedEmpAttendance", selectedEmployeeId],
     queryFn: async () => {
       if (!selectedEmployeeId) return null;
-      const res = await api.get("/users");
-      const userObj = (res.data.data || []).find((u: any) => u.employee?.id.toString() === selectedEmployeeId);
-      return userObj;
+      const res = await api.get(`/users/${selectedEmployeeId}`);
+      return res.data.data || null;
     },
     enabled: (isAdmin || isOwner) && !!selectedEmployeeId,
   });
@@ -376,6 +377,33 @@ export default function AttendanceLeavePage() {
       setGpsError(err.response?.data?.message || "Gagal memproses absen.");
     },
   });
+
+  // Mutation: Record Break Start / End
+  const breakMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post("/istirahat");
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["attendanceHistory"] });
+      showAlert(data.message, "success", "Pencatatan Berhasil");
+    },
+    onError: (err: any) => {
+      showAlert(err.response?.data?.message || "Gagal mencatat jam istirahat.", "error", "Gagal");
+    },
+  });
+
+  const [isBefore12, setIsBefore12] = useState(true);
+
+  useEffect(() => {
+    const checkTime = () => {
+      const hr = new Date().getHours();
+      setIsBefore12(hr < 12);
+    };
+    checkTime();
+    const interval = setInterval(checkTime, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Mutation: Submit Leave
   const submitLeaveMutation = useMutation({
@@ -836,6 +864,9 @@ export default function AttendanceLeavePage() {
       let status = "-";
       let checkIn = "-";
       let checkOut = "-";
+      let breakStart = "-";
+      let breakEnd = "-";
+      let isEarliest = false;
       let colorClass = "text-zinc-400 bg-zinc-50 border-zinc-100";
       let statusLabel = "Belum Berjalan";
 
@@ -849,6 +880,9 @@ export default function AttendanceLeavePage() {
       if (attendance) {
         checkIn = attendance.check_in ? attendance.check_in.substring(0, 5) : "-";
         checkOut = attendance.check_out ? attendance.check_out.substring(0, 5) : "-";
+        breakStart = attendance.break_start ? attendance.break_start.substring(0, 5) : "-";
+        breakEnd = attendance.break_end ? attendance.break_end.substring(0, 5) : "-";
+        isEarliest = !!attendance.is_earliest;
         
         if (attendance.status === "present") {
           status = "present";
@@ -918,6 +952,9 @@ export default function AttendanceLeavePage() {
         dayName: day.toLocaleDateString("id-ID", { weekday: "long" }),
         checkIn,
         checkOut,
+        breakStart,
+        breakEnd,
+        isEarliest,
         status,
         statusLabel,
         colorClass,
@@ -957,6 +994,8 @@ export default function AttendanceLeavePage() {
 
   const totalAbsent = employeeGrid.filter((d: any) => d.status === "absent").length;
 
+  const totalTrophies = employeeGrid.filter((d: any) => d.isEarliest).length;
+
   // Generate grid for admin report view
   const adminSelectedGrid = (isAdmin || isOwner) && adminSelectedEmpAttendance
     ? generateMonthlyGrid(selectedMonth, adminSelectedEmpAttendance.employee?.attendances || [], adminSelectedEmpAttendance.employee?.leave_requests || [], adminSelectedEmpAttendance.employee?.work_hour_permissions || [])
@@ -984,6 +1023,8 @@ export default function AttendanceLeavePage() {
 
   const adminTotalAbsent = adminSelectedGrid.filter((d: any) => d.status === "absent").length;
 
+  const adminTotalTrophies = adminSelectedGrid.filter((d: any) => d.isEarliest).length;
+
   const filterGrid = (grid: any[]) => {
     if (!attendanceFilter) return grid;
     return grid.filter((d: any) => {
@@ -1008,6 +1049,8 @@ export default function AttendanceLeavePage() {
           return d.whPermissionId !== null;
         case "absent":
           return d.status === "absent";
+        case "earliest":
+          return d.isEarliest === true;
         default:
           return true;
       }
@@ -1083,7 +1126,7 @@ export default function AttendanceLeavePage() {
                 </div>
 
                 {/* Absen Masuk Status */}
-                <div className="space-y-1 md:col-span-3 md:border-r md:border-zinc-100 md:px-4">
+                <div className="space-y-1 md:col-span-2 md:border-r md:border-zinc-100 md:px-4">
                   <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Absen Masuk</p>
                   <div className="flex items-center gap-2">
                     <p className="text-base font-mono font-bold text-zinc-800">
@@ -1099,20 +1142,51 @@ export default function AttendanceLeavePage() {
                   </div>
                 </div>
 
-                {/* Absen Pulang Status */}
+                {/* Jam Istirahat Status */}
                 <div className="space-y-1 md:col-span-3 md:border-r md:border-zinc-100 md:px-4">
+                  <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Jam Istirahat</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-base font-mono font-bold text-zinc-800">
+                      {todayAttendance?.break_start
+                        ? `${todayAttendance.break_start.substring(0, 5)} - ${
+                            todayAttendance.break_end ? todayAttendance.break_end.substring(0, 5) : "--:--"
+                          }`
+                        : "--:--"}
+                    </p>
+                    {todayAttendance?.break_start && !todayAttendance?.break_end && (
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100 animate-pulse">
+                        Sedang Istirahat
+                      </span>
+                    )}
+                    {todayAttendance?.break_start && todayAttendance?.break_end && (
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        Selesai
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Absen Pulang Status */}
+                <div className="space-y-1 md:col-span-2 md:border-r md:border-zinc-100 md:px-4">
                   <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Absen Pulang</p>
                   <p className="text-base font-mono font-bold text-zinc-800">
                     {todayAttendance?.check_out ? todayAttendance.check_out.substring(0, 5) : "--:--"}
                   </p>
                 </div>
 
-                {/* Tombol Absen */}
-                <div className="md:col-span-4 md:pl-4 flex justify-stretch md:justify-end">
+                {/* Tombol Absen / Istirahat */}
+                <div className="md:col-span-3 md:pl-4 flex flex-col gap-2 justify-stretch md:justify-end">
                   <button
                     onClick={handleGPSAbsen}
-                    disabled={gpsLoading || tapMutation.isPending || showLoading || (todayAttendance?.check_in && todayAttendance?.check_out) || (isTodayOnLeave && !todayAttendance?.check_in)}
-                    className="w-full md:max-w-[220px] bg-[#FF8200] hover:bg-[#e07200] disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-150 disabled:shadow-none text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-orange-500/10 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap"
+                    disabled={
+                      gpsLoading ||
+                      tapMutation.isPending ||
+                      showLoading ||
+                      (todayAttendance?.check_in && todayAttendance?.check_out) ||
+                      (isTodayOnLeave && !todayAttendance?.check_in) ||
+                      (todayAttendance?.check_in && todayAttendance?.break_start && !todayAttendance?.break_end)
+                    }
+                    className="w-full bg-[#FF8200] hover:bg-[#e07200] disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-150 disabled:shadow-none text-white font-bold py-2.5 px-4 rounded-xl shadow-md shadow-orange-500/10 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap"
                   >
                     {gpsLoading || tapMutation.isPending || showLoading ? (
                       <>
@@ -1132,7 +1206,9 @@ export default function AttendanceLeavePage() {
                     ) : todayAttendance?.check_in ? (
                       <>
                         <Clock className="h-4 w-4" />
-                        Absen Pulang (Clock Out)
+                        {todayAttendance?.break_start && !todayAttendance?.break_end
+                          ? "Selesaikan Istirahat Dulu"
+                          : "Absen Pulang (Clock Out)"}
                       </>
                     ) : (
                       <>
@@ -1141,6 +1217,37 @@ export default function AttendanceLeavePage() {
                       </>
                     )}
                   </button>
+
+                  {/* Tombol Istirahat khusus jika sudah Clock In dan belum Clock Out */}
+                  {todayAttendance?.check_in && !todayAttendance?.check_out && (
+                    <button
+                      onClick={() => breakMutation.mutate()}
+                      disabled={breakMutation.isPending || (!todayAttendance?.break_start && isBefore12) || (todayAttendance?.break_start && todayAttendance?.break_end)}
+                      className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-zinc-100 disabled:text-zinc-400 disabled:shadow-none text-white font-bold py-2.5 px-4 rounded-xl shadow-md shadow-violet-500/10 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap"
+                    >
+                      {breakMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Memproses...
+                        </>
+                      ) : !todayAttendance?.break_start ? (
+                        <>
+                          <Coffee className="h-4 w-4" />
+                          {isBefore12 ? "Mulai Istirahat (Tersedia 12:00)" : "Mulai Istirahat"}
+                        </>
+                      ) : !todayAttendance?.break_end ? (
+                        <>
+                          <Coffee className="h-4 w-4 text-amber-300 animate-bounce" />
+                          Selesai Istirahat
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4 text-zinc-400" />
+                          Istirahat Selesai
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1205,7 +1312,7 @@ export default function AttendanceLeavePage() {
               </div>
 
               {/* Rekap Absensi Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 pb-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 pb-2">
                 <div
                   onClick={() => setAttendanceFilter(attendanceFilter === "present" ? null : "present")}
                   className={`transition-all duration-200 cursor-pointer rounded-xl border p-4 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
@@ -1284,7 +1391,7 @@ export default function AttendanceLeavePage() {
 
                 <div
                   onClick={() => setAttendanceFilter(attendanceFilter === "absent" ? null : "absent")}
-                  className={`transition-all duration-200 cursor-pointer rounded-xl border p-4 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 col-span-2 md:col-span-1 ${
+                  className={`transition-all duration-200 cursor-pointer rounded-xl border p-4 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
                     attendanceFilter === "absent"
                       ? "border-rose-500 ring-2 ring-rose-500/10 bg-rose-50/30"
                       : attendanceFilter
@@ -1300,6 +1407,26 @@ export default function AttendanceLeavePage() {
                     <CalendarX className="h-4 w-4" />
                   </div>
                 </div>
+
+                {/* Card Piala Tercepat */}
+                <div
+                  onClick={() => setAttendanceFilter(attendanceFilter === "earliest" ? null : "earliest")}
+                  className={`transition-all duration-200 cursor-pointer rounded-xl border p-4 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                    attendanceFilter === "earliest"
+                      ? "border-amber-500 ring-2 ring-amber-500/10 bg-emerald-50/20"
+                      : attendanceFilter
+                      ? "opacity-50 border-zinc-100 bg-zinc-50/50"
+                      : "border-zinc-100 bg-zinc-50/50"
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Piala Tercepat</span>
+                    <div className="text-xl font-extrabold text-amber-600">{totalTrophies} Piala</div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-amber-50 text-amber-500">
+                    <Trophy className="h-4 w-4 text-yellow-500 fill-yellow-400 shrink-0" />
+                  </div>
+                </div>
               </div>
 
               {/* Filter Alert Message */}
@@ -1307,7 +1434,7 @@ export default function AttendanceLeavePage() {
                 <div className="bg-zinc-50 border border-zinc-150 rounded-xl p-2.5 px-4 flex items-center justify-between text-xs text-zinc-700 shadow-sm transition-all duration-250">
                   <div className="flex items-center gap-2 font-semibold">
                     <span className="h-2.5 w-2.5 rounded-full bg-[#FF8200] animate-pulse"></span>
-                    Menampilkan hasil filter: <span className="font-bold text-[#FF8200] capitalize">{attendanceFilter === "wh_permission" ? "Izin Jam Kerja" : attendanceFilter === "leave" ? "Izin & Cuti" : attendanceFilter.replace("_", " ")}</span> ({filteredEmployeeGrid.length} Hari)
+                    Menampilkan hasil filter: <span className="font-bold text-[#FF8200] capitalize">{attendanceFilter === "wh_permission" ? "Izin Jam Kerja" : attendanceFilter === "leave" ? "Izin & Cuti" : attendanceFilter === "earliest" ? "Piala Tercepat" : attendanceFilter.replace("_", " ")}</span> ({filteredEmployeeGrid.length} Hari)
                   </div>
                   <button
                     onClick={() => setAttendanceFilter(null)}
@@ -1331,6 +1458,7 @@ export default function AttendanceLeavePage() {
                         <tr>
                           <th className="p-3.5">Hari & Tanggal</th>
                           <th className="p-3.5">Absen Masuk</th>
+                          <th className="p-3.5">Jam Istirahat</th>
                           <th className="p-3.5">Absen Pulang</th>
                           <th className="p-3.5 text-center">Status</th>
                           <th className="p-3.5 text-center">Aksi</th>
@@ -1346,7 +1474,21 @@ export default function AttendanceLeavePage() {
                                 <div className="font-bold text-zinc-900">{day.formattedDay}</div>
                                 <div className="text-[10px] text-zinc-400 font-semibold capitalize">{day.dayName}</div>
                               </td>
-                              <td className="p-3.5 font-mono text-zinc-800 font-bold">{day.checkIn}</td>
+                              <td className="p-3.5 font-mono text-zinc-800 font-bold">
+                                <div className="flex items-center gap-1">
+                                  {day.checkIn}
+                                  {day.isEarliest && (
+                                    <span title="Datang Tercepat!">
+                                      <Trophy className="h-3.5 w-3.5 text-yellow-500 fill-yellow-400 shrink-0" />
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3.5 font-mono text-zinc-850 font-bold">
+                                {day.breakStart !== "-" 
+                                  ? `${day.breakStart} - ${day.breakEnd !== "-" ? day.breakEnd : "..."}` 
+                                  : "-"}
+                              </td>
                               <td className="p-3.5 font-mono text-zinc-800 font-bold">{day.checkOut}</td>
                               <td className="p-3.5 text-center">
                                 {day.status === "future" ? (
@@ -1586,7 +1728,7 @@ export default function AttendanceLeavePage() {
                       className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#FF8200] bg-white cursor-pointer font-bold w-full sm:w-48"
                     >
                       {employees && employees.map((emp: any) => (
-                        <option key={emp.employee.id} value={emp.employee.id}>
+                        <option key={emp.id} value={emp.id}>
                           {emp.name} ({emp.employee.employee_code})
                         </option>
                       ))}
@@ -1607,7 +1749,7 @@ export default function AttendanceLeavePage() {
 
               {/* Rekap Absensi Stats Grid Admin */}
               {selectedEmployeeId && !adminSelectedEmpLoading && (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
                   <div
                     onClick={() => setAttendanceFilter(attendanceFilter === "present" ? null : "present")}
                     className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
@@ -1722,6 +1864,26 @@ export default function AttendanceLeavePage() {
                       <Moon className="h-5 w-5" />
                     </div>
                   </div>
+
+                  {/* Card Piala Tercepat Admin */}
+                  <div
+                    onClick={() => setAttendanceFilter(attendanceFilter === "earliest" ? null : "earliest")}
+                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                      attendanceFilter === "earliest"
+                        ? "border-amber-500 ring-2 ring-amber-500/10 bg-amber-50/20"
+                        : attendanceFilter
+                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                        : "border-zinc-150 bg-zinc-50/30"
+                    }`}
+                  >
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Piala Tercepat</span>
+                      <div className="text-xl font-extrabold text-amber-600">{adminTotalTrophies} Piala</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-amber-50 text-amber-500">
+                      <Trophy className="h-5 w-5 text-yellow-500 fill-yellow-400 shrink-0" />
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1730,7 +1892,7 @@ export default function AttendanceLeavePage() {
                 <div className="bg-zinc-50 border border-zinc-150 rounded-xl p-2.5 px-4 flex items-center justify-between text-xs text-zinc-700 shadow-sm transition-all duration-250 mb-4">
                   <div className="flex items-center gap-2 font-semibold">
                     <span className="h-2.5 w-2.5 rounded-full bg-[#FF8200] animate-pulse"></span>
-                    Menampilkan hasil filter: <span className="font-bold text-[#FF8200] capitalize">{attendanceFilter === "wh_permission" ? "Izin Jam Kerja" : attendanceFilter === "leave" ? "Izin & Cuti" : attendanceFilter.replace("_", " ")}</span> ({filteredAdminSelectedGrid.length} Hari)
+                    Menampilkan hasil filter: <span className="font-bold text-[#FF8200] capitalize">{attendanceFilter === "wh_permission" ? "Izin Jam Kerja" : attendanceFilter === "leave" ? "Izin & Cuti" : attendanceFilter === "earliest" ? "Piala Tercepat" : attendanceFilter.replace("_", " ")}</span> ({filteredAdminSelectedGrid.length} Hari)
                   </div>
                   <button
                     onClick={() => setAttendanceFilter(null)}
@@ -1756,6 +1918,7 @@ export default function AttendanceLeavePage() {
                         <tr>
                           <th className="p-3.5">Hari & Tanggal</th>
                           <th className="p-3.5">Absen Masuk</th>
+                          <th className="p-3.5">Jam Istirahat</th>
                           <th className="p-3.5">Absen Pulang</th>
                           <th className="p-3.5 text-center">Status</th>
                           <th className="p-3.5 text-center">Aksi</th>
@@ -1768,7 +1931,21 @@ export default function AttendanceLeavePage() {
                               <div className="font-bold text-zinc-900">{day.formattedDay}</div>
                               <div className="text-[10px] text-zinc-400 font-semibold capitalize">{day.dayName}</div>
                             </td>
-                            <td className="p-3.5 font-mono text-zinc-800 font-bold">{day.checkIn}</td>
+                            <td className="p-3.5 font-mono text-zinc-800 font-bold">
+                              <div className="flex items-center gap-1">
+                                {day.checkIn}
+                                {day.isEarliest && (
+                                  <span title="Datang Tercepat!">
+                                    <Trophy className="h-3.5 w-3.5 text-yellow-500 fill-yellow-400 shrink-0" />
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3.5 font-mono text-zinc-850 font-bold">
+                              {day.breakStart !== "-" 
+                                ? `${day.breakStart} - ${day.breakEnd !== "-" ? day.breakEnd : "..."}` 
+                                : "-"}
+                            </td>
                             <td className="p-3.5 font-mono text-zinc-800 font-bold">{day.checkOut}</td>
                             <td className="p-3.5 text-center">
                               {day.status === "future" ? (

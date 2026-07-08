@@ -27,6 +27,7 @@ import {
   MessageSquare,
   RefreshCw,
   Timer,
+  Coffee,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import ReviewModal from "@/components/review-modal";
@@ -278,6 +279,33 @@ export default function DashboardPage() {
       { enableHighAccuracy: true, timeout: 8000 }
     );
   };
+
+  // Mutation: Record Break Start / End
+  const breakMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post("/istirahat");
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["attendanceHistory"] });
+      showAlert(data.message, "success", "Pencatatan Berhasil");
+    },
+    onError: (err: any) => {
+      showAlert(err.response?.data?.message || "Gagal mencatat jam istirahat.", "error", "Gagal");
+    },
+  });
+
+  const [isBefore12, setIsBefore12] = useState(true);
+
+  useEffect(() => {
+    const checkTime = () => {
+      const hr = new Date().getHours();
+      setIsBefore12(hr < 12);
+    };
+    checkTime();
+    const interval = setInterval(checkTime, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const todayStr = toLocalDateString(new Date());
 
@@ -559,6 +587,7 @@ export default function DashboardPage() {
                   <tr>
                     <th className="p-3.5 pl-5">Nama Karyawan</th>
                     <th className="p-3.5">Absen Masuk</th>
+                    <th className="p-3.5">Jam Istirahat</th>
                     <th className="p-3.5">Absen Pulang</th>
                     <th className="p-3.5 text-center">Status Kehadiran</th>
                   </tr>
@@ -593,7 +622,21 @@ export default function DashboardPage() {
                               <div className="text-[10px] text-zinc-400 font-mono font-bold mt-0.5">{item.employee_code}</div>
                             </div>
                           </td>
-                          <td className="p-3.5 font-mono text-zinc-800 font-bold">{item.check_in}</td>
+                          <td className="p-3.5 font-mono text-zinc-800 font-bold">
+                            <div className="flex items-center gap-1">
+                              {item.check_in}
+                              {item.is_earliest && (
+                                <span title="Datang Tercepat!">
+                                  <Trophy className="h-3.5 w-3.5 text-yellow-500 fill-yellow-400 shrink-0" />
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3.5 font-mono text-zinc-850 font-bold">
+                            {item.break_start !== "-"
+                              ? `${item.break_start} - ${item.break_end !== "-" ? item.break_end : "..."}`
+                              : "-"}
+                          </td>
                           <td className="p-3.5 font-mono text-zinc-800 font-bold">{item.check_out}</td>
                           <td className="p-3.5 text-center">
                             <span
@@ -995,7 +1038,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Absen Masuk Status */}
-          <div className="space-y-1 md:col-span-3 md:border-r md:border-zinc-100 md:px-4">
+          <div className="space-y-1 md:col-span-2 md:border-r md:border-zinc-100 md:px-4">
             <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Absen Masuk</p>
             <div className="flex items-center gap-2">
               <p className="text-base font-mono font-bold text-zinc-800">
@@ -1011,20 +1054,51 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Absen Pulang Status */}
+          {/* Jam Istirahat Status */}
           <div className="space-y-1 md:col-span-3 md:border-r md:border-zinc-100 md:px-4">
+            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Jam Istirahat</p>
+            <div className="flex items-center gap-2">
+              <p className="text-base font-mono font-bold text-zinc-800">
+                {todayAttendance?.break_start
+                  ? `${todayAttendance.break_start.substring(0, 5)} - ${
+                      todayAttendance.break_end ? todayAttendance.break_end.substring(0, 5) : "--:--"
+                    }`
+                  : "--:--"}
+              </p>
+              {todayAttendance?.break_start && !todayAttendance?.break_end && (
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100 animate-pulse">
+                  Sedang Istirahat
+                </span>
+              )}
+              {todayAttendance?.break_start && todayAttendance?.break_end && (
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                  Selesai
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Absen Pulang Status */}
+          <div className="space-y-1 md:col-span-2 md:border-r md:border-zinc-100 md:px-4">
             <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Absen Pulang</p>
             <p className="text-base font-mono font-bold text-zinc-800">
               {todayAttendance?.check_out ? todayAttendance.check_out.substring(0, 5) : "--:--"}
             </p>
           </div>
 
-          {/* Tombol Absen */}
-          <div className="md:col-span-4 md:pl-4 flex justify-stretch md:justify-end">
+          {/* Tombol Absen / Istirahat */}
+          <div className="md:col-span-3 md:pl-4 flex flex-col gap-2 justify-stretch md:justify-end">
             <button
               onClick={handleGPSAbsen}
-              disabled={gpsLoading || tapMutation.isPending || showLoading || (todayAttendance?.check_in && todayAttendance?.check_out) || (isTodayOnLeave && !todayAttendance?.check_in)}
-              className="w-full md:max-w-[220px] bg-[#FF8200] hover:bg-[#e07200] disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-150 disabled:shadow-none text-white font-bold py-3 px-4 rounded-xl shadow-md shadow-orange-500/10 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap"
+              disabled={
+                gpsLoading ||
+                tapMutation.isPending ||
+                showLoading ||
+                (todayAttendance?.check_in && todayAttendance?.check_out) ||
+                (isTodayOnLeave && !todayAttendance?.check_in) ||
+                (todayAttendance?.check_in && todayAttendance?.break_start && !todayAttendance?.break_end)
+              }
+              className="w-full bg-[#FF8200] hover:bg-[#e07200] disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-150 disabled:shadow-none text-white font-bold py-2.5 px-4 rounded-xl shadow-md shadow-orange-500/10 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap"
             >
               {gpsLoading || tapMutation.isPending || showLoading ? (
                 <>
@@ -1044,7 +1118,9 @@ export default function DashboardPage() {
               ) : todayAttendance?.check_in ? (
                 <>
                   <Clock className="h-4 w-4" />
-                  Absen Pulang (Clock Out)
+                  {todayAttendance?.break_start && !todayAttendance?.break_end
+                    ? "Selesaikan Istirahat Dulu"
+                    : "Absen Pulang (Clock Out)"}
                 </>
               ) : (
                 <>
@@ -1053,6 +1129,37 @@ export default function DashboardPage() {
                 </>
               )}
             </button>
+
+            {/* Tombol Istirahat khusus jika sudah Clock In dan belum Clock Out */}
+            {todayAttendance?.check_in && !todayAttendance?.check_out && (
+              <button
+                onClick={() => breakMutation.mutate()}
+                disabled={breakMutation.isPending || (!todayAttendance?.break_start && isBefore12) || (todayAttendance?.break_start && todayAttendance?.break_end)}
+                className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-zinc-100 disabled:text-zinc-400 disabled:shadow-none text-white font-bold py-2.5 px-4 rounded-xl shadow-md shadow-violet-500/10 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap"
+              >
+                {breakMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Memproses...
+                  </>
+                ) : !todayAttendance?.break_start ? (
+                  <>
+                    <Coffee className="h-4 w-4" />
+                    {isBefore12 ? "Mulai Istirahat (Tersedia 12:00)" : "Mulai Istirahat"}
+                  </>
+                ) : !todayAttendance?.break_end ? (
+                  <>
+                    <Coffee className="h-4 w-4 text-amber-300 animate-bounce" />
+                    Selesai Istirahat
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 text-zinc-400" />
+                    Istirahat Selesai
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 

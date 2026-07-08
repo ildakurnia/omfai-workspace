@@ -53,9 +53,49 @@ class UserController extends Controller
      */
     public function show(User $user): JsonResponse
     {
+        $user->load(['roles', 'employee.leaveRequests', 'employee.workHourPermissions']);
+
+        if ($user->employee) {
+            $attendances = $user->employee->attendances()
+                ->orderBy('date', 'desc')
+                ->get();
+                
+            $dates = $attendances->pluck('date')->map(function($d) {
+                return $d instanceof \Carbon\Carbon ? $d->toDateString() : $d;
+            })->unique()->toArray();
+
+            $earliestCheckIns = \App\Models\Attendance::whereIn('date', $dates)
+                ->whereNotNull('check_in')
+                ->whereIn('status', ['present', 'late'])
+                ->select('date', \DB::raw('MIN(check_in) as min_check_in'))
+                ->groupBy('date')
+                ->get()
+                ->mapWithKeys(function ($item) {
+                    $dateStr = $item->date instanceof \Carbon\Carbon ? $item->date->toDateString() : (string)$item->date;
+                    return [$dateStr => $item->min_check_in];
+                })
+                ->toArray();
+
+            $attendancesData = $attendances->map(function ($attendance) use ($earliestCheckIns) {
+                $dateStr = $attendance->date instanceof \Carbon\Carbon ? $attendance->date->toDateString() : (string)$attendance->date;
+                $minCheckIn = $earliestCheckIns[$dateStr] ?? null;
+                
+                $isEarliest = false;
+                if ($attendance->check_in && $minCheckIn && $attendance->check_in === $minCheckIn) {
+                    $isEarliest = true;
+                }
+
+                $attendance->setAttribute('is_earliest', $isEarliest);
+                return $attendance;
+            });
+
+            // Set relation explicitly
+            $user->employee->setRelation('attendances', $attendancesData);
+        }
+
         return response()->json([
             'message' => 'Detail pengguna berhasil dimuat.',
-            'data' => $user->load('roles'),
+            'data' => $user,
         ]);
     }
 
