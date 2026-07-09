@@ -414,4 +414,70 @@ class AttendanceTest extends TestCase
                 'message' => 'Attendance rejected. You are on approved leave today.'
             ]);
     }
+
+    /**
+     * Test break start/end fails if coordinates are outside geofence.
+     */
+    public function test_istirahat_fails_outside_geofence()
+    {
+        // 1. Create a checked-in attendance
+        Attendance::create([
+            'employee_id' => $this->employee->id,
+            'date' => '2026-06-23',
+            'check_in' => '07:30:00',
+            'status' => 'present'
+        ]);
+
+        // Mock current time to Tuesday 12:05 PM (Break is allowed after 12:00)
+        Carbon::setTestNow(Carbon::parse('2026-06-23 12:05:00'));
+
+        // Coordinates far away from office
+        $response = $this->actingAs($this->employeeUser)
+            ->postJson('/api/istirahat', [
+                'latitude' => -6.300000,
+                'longitude' => 106.900000,
+            ]);
+
+        $response->assertStatus(403)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Anda berada di luar area geofence yang diizinkan.'
+            ]);
+
+        Carbon::setTestNow();
+    }
+
+    /**
+     * Test break start/end succeeds if coordinates are inside geofence.
+     */
+    public function test_istirahat_succeeds_inside_geofence()
+    {
+        // 1. Create a checked-in attendance
+        $attendance = Attendance::create([
+            'employee_id' => $this->employee->id,
+            'date' => '2026-06-23',
+            'check_in' => '07:30:00',
+            'status' => 'present'
+        ]);
+
+        // Mock current time to Tuesday 12:05 PM
+        Carbon::setTestNow(Carbon::parse('2026-06-23 12:05:00'));
+
+        // Coordinates inside geofence
+        $response = $this->actingAs($this->employeeUser)
+            ->postJson('/api/istirahat', [
+                'latitude' => -6.200050,
+                'longitude' => 106.800050,
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'message' => 'Selamat beristirahat.'
+            ]);
+
+        $this->assertNotNull($attendance->refresh()->break_start);
+
+        Carbon::setTestNow();
+    }
 }

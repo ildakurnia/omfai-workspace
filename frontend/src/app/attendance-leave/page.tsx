@@ -380,16 +380,17 @@ export default function AttendanceLeavePage() {
 
   // Mutation: Record Break Start / End
   const breakMutation = useMutation({
-    mutationFn: async () => {
-      const res = await api.post("/istirahat");
+    mutationFn: async (coords: { latitude: number; longitude: number }) => {
+      const res = await api.post("/istirahat", coords);
       return res.data;
     },
     onSuccess: (data) => {
+      setGpsError(null);
       queryClient.invalidateQueries({ queryKey: ["attendanceHistory"] });
       showAlert(data.message, "success", "Pencatatan Berhasil");
     },
     onError: (err: any) => {
-      showAlert(err.response?.data?.message || "Gagal mencatat jam istirahat.", "error", "Gagal");
+      setGpsError(err.response?.data?.message || "Gagal mencatat jam istirahat.");
     },
   });
 
@@ -678,6 +679,39 @@ export default function AttendanceLeavePage() {
           longitude: position.coords.longitude,
         };
         tapMutation.mutate(coords, {
+          onSettled: () => setGpsLoading(false),
+        });
+      },
+      (error) => {
+        let msg = "Gagal mendapatkan lokasi Anda.";
+        if (error.code === 1) msg = "Izin akses lokasi ditolak oleh browser Anda.";
+        else if (error.code === 2) msg = "Lokasi tidak dapat ditentukan.";
+        else if (error.code === 3) msg = "Waktu pencarian lokasi habis.";
+        setGpsError(msg);
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+  // Trigger GPS Istirahat Mulai/Selesai
+  const handleGPSBreak = () => {
+    setGpsLoading(true);
+    setGpsError(null);
+
+    if (!navigator.geolocation) {
+      setGpsError("Geolocation tidak didukung oleh browser Anda.");
+      setGpsLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        breakMutation.mutate(coords, {
           onSettled: () => setGpsLoading(false),
         });
       },
@@ -1221,11 +1255,11 @@ export default function AttendanceLeavePage() {
                   {/* Tombol Istirahat khusus jika sudah Clock In dan belum Clock Out */}
                   {todayAttendance?.check_in && !todayAttendance?.check_out && (
                     <button
-                      onClick={() => breakMutation.mutate()}
-                      disabled={breakMutation.isPending || (!todayAttendance?.break_start && isBefore12) || (todayAttendance?.break_start && todayAttendance?.break_end)}
+                      onClick={handleGPSBreak}
+                      disabled={breakMutation.isPending || gpsLoading || (!todayAttendance?.break_start && isBefore12) || (todayAttendance?.break_start && todayAttendance?.break_end)}
                       className="w-full bg-violet-600 hover:bg-violet-700 disabled:bg-zinc-100 disabled:text-zinc-400 disabled:shadow-none text-white font-bold py-2.5 px-4 rounded-xl shadow-md shadow-violet-500/10 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap"
                     >
-                      {breakMutation.isPending ? (
+                      {breakMutation.isPending || gpsLoading ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
                           Memproses...

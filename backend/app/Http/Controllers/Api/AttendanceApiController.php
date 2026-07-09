@@ -277,6 +277,19 @@ class AttendanceApiController extends Controller
      */
     public function istirahat(Request $request)
     {
+        $validator = Validator::make($request->all(), [
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Koordinat lokasi diperlukan.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
         $user = Auth::user();
         $employee = $user->employee;
 
@@ -315,6 +328,34 @@ class AttendanceApiController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Istirahat hanya diperbolehkan setelah jam 12:00 siang.'
+            ], 403);
+        }
+
+        // Geofencing check
+        $geofences = Geofence::all();
+        if ($geofences->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No geofencing coordinates are configured on the server.'
+            ], 400);
+        }
+
+        $inRange = false;
+        $userLat = $request->latitude;
+        $userLng = $request->longitude;
+
+        foreach ($geofences as $geofence) {
+            $distance = $this->calculateDistance($userLat, $userLng, $geofence->latitude, $geofence->longitude);
+            if ($distance <= $geofence->radius) {
+                $inRange = true;
+                break;
+            }
+        }
+
+        if (!$inRange) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda berada di luar area geofence yang diizinkan.'
             ], 403);
         }
 
