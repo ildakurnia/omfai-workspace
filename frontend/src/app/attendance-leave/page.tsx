@@ -25,6 +25,7 @@ import {
   Timer,
   Coffee,
   Trophy,
+  Info,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import api from "@/lib/api";
@@ -62,6 +63,9 @@ export default function AttendanceLeavePage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectionError, setRejectionError] = useState<string | null>(null);
   const [rejectionType, setRejectionType] = useState<"leave" | "work_hour">("leave");
+  const [isRequestDetailModalOpen, setIsRequestDetailModalOpen] = useState(false);
+  const [selectedDetailRequest, setSelectedDetailRequest] = useState<{ type: "leave" | "work_hour"; data: any } | null>(null);
+  const [adminHistoryActiveTab, setAdminHistoryActiveTab] = useState<"leave" | "work_hour">("leave");
 
   // Work hour permission states
   const [isWorkHourModalOpen, setIsWorkHourModalOpen] = useState(false);
@@ -674,6 +678,11 @@ export default function AttendanceLeavePage() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        if (!position.coords.latitude || !position.coords.longitude) {
+          setGpsError("Gagal mendapatkan koordinat GPS yang valid dari perangkat Anda. Pastikan GPS aktif.");
+          setGpsLoading(false);
+          return;
+        }
         const coords = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -707,6 +716,11 @@ export default function AttendanceLeavePage() {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        if (!position.coords.latitude || !position.coords.longitude) {
+          setGpsError("Gagal mendapatkan koordinat GPS yang valid dari perangkat Anda. Pastikan GPS aktif.");
+          setGpsLoading(false);
+          return;
+        }
         const coords = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -725,6 +739,48 @@ export default function AttendanceLeavePage() {
       },
       { enableHighAccuracy: true, timeout: 8000 }
     );
+  };
+
+  const isEmployeeLeaveEligible = (joinedAtStr?: string) => {
+    if (!joinedAtStr) return false;
+    const joinedAt = new Date(joinedAtStr);
+    if (isNaN(joinedAt.getTime())) return false;
+    
+    const now = new Date();
+    const diffYears = now.getFullYear() - joinedAt.getFullYear();
+    const diffMonths = now.getMonth() - joinedAt.getMonth();
+    const totalMonths = diffYears * 12 + diffMonths;
+    const dayAdjust = now.getDate() < joinedAt.getDate() ? -1 : 0;
+    
+    return (totalMonths + dayAdjust) >= 12;
+  };
+
+  const handleOpenDetailModal = (leaveId: number | null, whPermissionId: number | null) => {
+    let matchedRequest: any = null;
+    let type: "leave" | "work_hour" = "leave";
+
+    if (leaveId) {
+      type = "leave";
+      // Search in employee's leave history first
+      matchedRequest = (leaveHistory?.data || []).find((l: any) => l.id === leaveId);
+      // If not found, search in admin's selected employee leave requests
+      if (!matchedRequest && adminSelectedEmpAttendance?.employee?.leave_requests) {
+        matchedRequest = (adminSelectedEmpAttendance.employee.leave_requests || []).find((l: any) => l.id === leaveId);
+      }
+    } else if (whPermissionId) {
+      type = "work_hour";
+      // Search in employee's work hour permissions first
+      matchedRequest = (workHourPermissions?.data || []).find((w: any) => w.id === whPermissionId);
+      // If not found, search in admin's selected employee work hour permissions
+      if (!matchedRequest && adminSelectedEmpAttendance?.employee?.work_hour_permissions) {
+        matchedRequest = (adminSelectedEmpAttendance.employee.work_hour_permissions || []).find((w: any) => w.id === whPermissionId);
+      }
+    }
+
+    if (matchedRequest) {
+      setSelectedDetailRequest({ type, data: matchedRequest });
+      setIsRequestDetailModalOpen(true);
+    }
   };
 
   const onSubmitLeave = (values: LeaveFormValues) => {
@@ -885,14 +941,14 @@ export default function AttendanceLeavePage() {
       
       const attendance = (attendances || []).find((a: any) => a.date === dayStr);
       
-      // Check leaves matching this day
+      // Check leaves matching this day (approved or pending)
       const leave = (leaves || []).find((l: any) => {
-        return dayStr >= l.start_date && dayStr <= l.end_date && l.status === "approved";
+        return dayStr >= l.start_date && dayStr <= l.end_date && (l.status === "approved" || l.status === "pending");
       });
 
-      // Check approved work hour permissions matching this day
+      // Check approved or pending work hour permissions matching this day
       const whPermission = (whPermissions || []).find((w: any) => {
-        return w.date === dayStr && w.status === "approved";
+        return w.date === dayStr && (w.status === "approved" || w.status === "pending");
       });
 
       let status = "-";
@@ -928,35 +984,63 @@ export default function AttendanceLeavePage() {
           colorClass = "text-amber-700 bg-amber-50 border-amber-100";
         }
 
-        // Apply work hour permission labels if approved
+        // Apply work hour permission labels if matched
         if (whPermission) {
-          if (whPermission.type === "arrive_late" && attendance.status === "late") {
-            statusLabel = "Terlambat (Izin Disetujui)";
-            colorClass = "text-amber-800 bg-amber-50/70 border-amber-200";
-          } else if (whPermission.type === "leave_early") {
-            statusLabel = "Pulang Cepat (Izin Disetujui)";
-            colorClass = "text-indigo-700 bg-indigo-50 border-indigo-100";
-          } else if (whPermission.type === "out_temporary") {
-            statusLabel = `${statusLabel} (Keluar Sementara)`;
-            colorClass = "text-purple-700 bg-purple-50 border-purple-100";
+          if (whPermission.status === "approved") {
+            if (whPermission.type === "arrive_late" && attendance.status === "late") {
+              statusLabel = "Terlambat (Izin Disetujui)";
+              colorClass = "text-amber-850 bg-amber-50/70 border-amber-200";
+            } else if (whPermission.type === "leave_early") {
+              statusLabel = "Pulang Cepat (Izin Disetujui)";
+              colorClass = "text-indigo-700 bg-indigo-50 border-indigo-100";
+            } else if (whPermission.type === "out_temporary") {
+              statusLabel = `${statusLabel} (Keluar Sementara)`;
+              colorClass = "text-purple-700 bg-purple-50 border-purple-100";
+            }
+          } else if (whPermission.status === "pending") {
+            if (whPermission.type === "arrive_late" && attendance.status === "late") {
+              statusLabel = "Terlambat (Izin Diproses)";
+              colorClass = "text-amber-750 bg-amber-50 border-amber-100/50";
+            } else if (whPermission.type === "leave_early") {
+              statusLabel = "Pulang Cepat (Izin Diproses)";
+              colorClass = "text-amber-750 bg-amber-50 border-amber-100/50";
+            } else if (whPermission.type === "out_temporary") {
+              statusLabel = `${statusLabel} (Izin Keluar Diproses)`;
+              colorClass = "text-amber-750 bg-amber-50 border-amber-100/50";
+            }
           }
         }
       } else if (leave) {
         status = leave.type;
-        statusLabel = leave.type === "annual_leave" ? "Cuti" : leave.type === "sick_leave" ? "Sakit" : "Izin";
-        colorClass = leave.type === "sick_leave" ? "text-red-750 bg-red-50 border-red-100" : "text-blue-700 bg-blue-50 border-blue-100";
-      } else if (whPermission && whPermission.type === "leave_early") {
-        status = "leave_early";
-        statusLabel = "Pulang Cepat (Izin Disetujui)";
-        colorClass = "text-indigo-700 bg-indigo-50 border-indigo-100";
-      } else if (whPermission && whPermission.type === "arrive_late") {
-        status = "arrive_late";
-        statusLabel = "Terlambat (Izin Disetujui)";
-        colorClass = "text-amber-800 bg-amber-50/70 border-amber-200";
-      } else if (whPermission && whPermission.type === "out_temporary") {
-        status = "out_temporary";
-        statusLabel = "Hadir (Keluar Sementara)";
-        colorClass = "text-purple-700 bg-purple-50 border-purple-100";
+        const baseLabel = leave.type === "annual_leave" ? "Cuti" : leave.type === "sick_leave" ? "Sakit" : "Izin";
+        if (leave.status === "approved") {
+          statusLabel = baseLabel;
+          colorClass = leave.type === "sick_leave" ? "text-red-750 bg-red-50 border-red-100" : "text-blue-700 bg-blue-50 border-blue-100";
+        } else {
+          statusLabel = `${baseLabel} (Diproses)`;
+          colorClass = "text-amber-750 bg-amber-50 border-amber-200";
+        }
+      } else if (whPermission) {
+        if (whPermission.status === "approved") {
+          if (whPermission.type === "leave_early") {
+            status = "leave_early";
+            statusLabel = "Pulang Cepat (Izin Disetujui)";
+            colorClass = "text-indigo-700 bg-indigo-50 border-indigo-100";
+          } else if (whPermission.type === "arrive_late") {
+            status = "arrive_late";
+            statusLabel = "Terlambat (Izin Disetujui)";
+            colorClass = "text-amber-800 bg-amber-50/70 border-amber-200";
+          } else if (whPermission.type === "out_temporary") {
+            status = "out_temporary";
+            statusLabel = "Hadir (Keluar Sementara)";
+            colorClass = "text-purple-700 bg-purple-50 border-purple-100";
+          }
+        } else { // pending
+          status = "pending_permission";
+          const typeLabel = whPermission.type === "arrive_late" ? "Izin Masuk Lambat" : whPermission.type === "leave_early" ? "Izin Pulang Cepat" : "Izin Keluar Sementara";
+          statusLabel = `${typeLabel} (Diproses)`;
+          colorClass = "text-amber-750 bg-amber-50 border-amber-200";
+        }
       } else if (isSunday) {
         status = "weekend";
         statusLabel = "Libur Akhir Pekan";
@@ -1303,6 +1387,13 @@ export default function AttendanceLeavePage() {
                 
                 {/* Actions & Filters */}
                 <div className="flex flex-wrap items-center gap-3">
+                  {/* Sisa Cuti Karyawan */}
+                  {leaveHistory && (
+                    <div className="bg-blue-50 text-blue-800 border border-blue-155 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-blue-600" />
+                      <span>Sisa Cuti: <span className="text-blue-700 font-extrabold">{leaveHistory.is_eligible ? `${leaveHistory.leave_balance} Hari` : "0 Hari"}</span></span>
+                    </div>
+                  )}
                   {/* Filter Bulan */}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">Periode:</span>
@@ -1527,6 +1618,14 @@ export default function AttendanceLeavePage() {
                               <td className="p-3.5 text-center">
                                 {day.status === "future" ? (
                                   <span className="text-zinc-300 font-bold">-</span>
+                                ) : day.leaveId || day.whPermissionId ? (
+                                  <button
+                                    onClick={() => handleOpenDetailModal(day.leaveId, day.whPermissionId)}
+                                    className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${day.colorClass} cursor-pointer hover:opacity-80 hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-1`}
+                                  >
+                                    {day.statusLabel}
+                                    <Info className="h-3 w-3 shrink-0 opacity-70" />
+                                  </button>
                                 ) : (
                                   <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${day.colorClass}`}>
                                     {day.statusLabel}
@@ -1768,6 +1867,20 @@ export default function AttendanceLeavePage() {
                       ))}
                     </select>
                   </div>
+                  {/* Sisa Cuti Karyawan Terpilih */}
+                  {selectedEmployeeId && adminSelectedEmpAttendance?.employee && (
+                    <div className="bg-blue-50 text-blue-800 border border-blue-155 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0">
+                      <FileText className="h-3.5 w-3.5 text-blue-600" />
+                      <span>
+                        Sisa Cuti Karyawan:{" "}
+                        <span className="text-blue-700 font-extrabold">
+                          {isEmployeeLeaveEligible(adminSelectedEmpAttendance.employee.joined_at)
+                            ? `${adminSelectedEmpAttendance.employee.leave_balance} Hari`
+                            : "0 Hari (Belum 1 Tahun Kerja)"}
+                        </span>
+                      </span>
+                    </div>
+                  )}
                   {/* Select Bulan */}
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider shrink-0">Periode:</span>
@@ -1984,6 +2097,14 @@ export default function AttendanceLeavePage() {
                             <td className="p-3.5 text-center">
                               {day.status === "future" ? (
                                 <span className="text-zinc-300 font-bold">-</span>
+                              ) : day.leaveId || day.whPermissionId ? (
+                                <button
+                                  onClick={() => handleOpenDetailModal(day.leaveId, day.whPermissionId)}
+                                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${day.colorClass} cursor-pointer hover:opacity-80 hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-1`}
+                                >
+                                  {day.statusLabel}
+                                  <Info className="h-3 w-3 shrink-0 opacity-70" />
+                                </button>
                               ) : (
                                 <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${day.colorClass}`}>
                                   {day.statusLabel}
@@ -2019,6 +2140,230 @@ export default function AttendanceLeavePage() {
                 </div>
               </div>
             </div>
+
+            {/* Riwayat Pengajuan Perizinan & Cuti Karyawan Terpilih (All-time History) */}
+            {selectedEmployeeId && adminSelectedEmpAttendance?.employee && (
+              <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-[#FF8200]" />
+                      Riwayat Pengajuan Perizinan & Cuti Karyawan
+                    </h3>
+                    <p className="text-[10px] text-zinc-400 font-medium mt-1">
+                      Menampilkan semua riwayat pengajuan milik: <span className="font-bold text-zinc-700">{adminSelectedEmpAttendance.name}</span>
+                    </p>
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="flex border-b border-zinc-150 shrink-0">
+                    <button
+                      onClick={() => setAdminHistoryActiveTab("leave")}
+                      className={`px-3 py-1.5 text-xs font-bold border-b-2 cursor-pointer transition-all ${
+                        adminHistoryActiveTab === "leave"
+                          ? "border-[#FF8200] text-[#FF8200]"
+                          : "border-transparent text-zinc-400 hover:text-zinc-650"
+                      }`}
+                    >
+                      Cuti & Izin Harian
+                    </button>
+                    <button
+                      onClick={() => setAdminHistoryActiveTab("work_hour")}
+                      className={`px-3 py-1.5 text-xs font-bold border-b-2 cursor-pointer transition-all ${
+                        adminHistoryActiveTab === "work_hour"
+                          ? "border-[#FF8200] text-[#FF8200]"
+                          : "border-transparent text-zinc-400 hover:text-zinc-650"
+                      }`}
+                    >
+                      Izin Jam Kerja
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto max-h-[350px]">
+                  {adminHistoryActiveTab === "leave" ? (
+                    !adminSelectedEmpAttendance.employee.leave_requests || adminSelectedEmpAttendance.employee.leave_requests.length === 0 ? (
+                      <p className="text-xs text-zinc-400 py-12 text-center">Belum ada riwayat pengajuan cuti/izin.</p>
+                    ) : (
+                      <table className="w-full divide-y divide-zinc-150 text-left text-xs">
+                        <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider sticky top-0 z-10">
+                          <tr>
+                            <th className="p-3">Tipe Cuti</th>
+                            <th className="p-3">Periode</th>
+                            <th className="p-3">Alasan</th>
+                            <th className="p-3 text-center">Lampiran</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3 text-center">Aksi Persetujuan</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100 font-medium">
+                          {adminSelectedEmpAttendance.employee.leave_requests.map((item: any) => {
+                            const start = formatIndonesianDate(item.start_date);
+                            const end = formatIndonesianDate(item.end_date);
+                            const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
+                            return (
+                              <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
+                                <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
+                                <td className="p-3 text-zinc-500 font-semibold">{start} s/d {end}</td>
+                                <td className="p-3 text-zinc-650 max-w-[200px] truncate" title={item.reason}>{item.reason}</td>
+                                <td className="p-3 text-center">
+                                  {item.attachment ? (
+                                    <a
+                                      href={api.defaults.baseURL + "/../storage/" + item.attachment}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2 py-1 rounded-md"
+                                    >
+                                      <FileText className="h-3 w-3" />
+                                      Lihat Lampiran
+                                    </a>
+                                  ) : (
+                                    <span className="text-zinc-400">-</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                                    item.status === "approved"
+                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                      : item.status === "rejected"
+                                      ? "bg-rose-50 text-rose-700 border border-rose-100"
+                                      : item.status === "cancelled"
+                                      ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
+                                      : "bg-amber-50 text-amber-700 border border-amber-100"
+                                  }`}>
+                                    {item.status === "approved"
+                                      ? "DISETUJUI"
+                                      : item.status === "rejected"
+                                      ? "DITOLAK"
+                                      : item.status === "cancelled"
+                                      ? "DIBATALKAN"
+                                      : "DIPROSES"}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-center">
+                                  {item.status === "pending" ? (
+                                    <div className="flex gap-1.5 justify-center">
+                                      <button
+                                        onClick={() => approveLeaveMutation.mutate(item.id)}
+                                        disabled={approveLeaveMutation.isPending}
+                                        className="bg-emerald-650 hover:bg-emerald-700 text-white text-[10px] font-bold px-2 py-1 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                      >
+                                        Setujui
+                                      </button>
+                                      <button
+                                        onClick={() => handleOpenRejectModal(item.id, "leave")}
+                                        disabled={rejectLeaveMutation.isPending}
+                                        className="bg-rose-650 hover:bg-rose-700 text-white text-[10px] font-bold px-2 py-1 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                      >
+                                        Tolak
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-zinc-400">-</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )
+                  ) : (
+                    !adminSelectedEmpAttendance.employee.work_hour_permissions || adminSelectedEmpAttendance.employee.work_hour_permissions.length === 0 ? (
+                      <p className="text-xs text-zinc-400 py-12 text-center">Belum ada riwayat pengajuan izin jam kerja.</p>
+                    ) : (
+                      <table className="w-full divide-y divide-zinc-150 text-left text-xs">
+                        <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider sticky top-0 z-10">
+                          <tr>
+                            <th className="p-3">Tipe Izin</th>
+                            <th className="p-3">Tanggal & Jam</th>
+                            <th className="p-3">Alasan</th>
+                            <th className="p-3 text-center">Lampiran</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3 text-center">Aksi Persetujuan</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100 font-medium">
+                          {adminSelectedEmpAttendance.employee.work_hour_permissions.map((item: any) => {
+                            const dateStr = formatIndonesianDate(item.date);
+                            const typeLabel = item.type === "out_temporary" ? "Izin Keluar Sementara" : item.type === "arrive_late" ? "Izin Datang Terlambat" : "Izin Pulang Lebih Awal";
+                            const timeRange = (item.type === "leave_early") 
+                              ? `Mulai ${item.start_time ? item.start_time.substring(0, 5) : "--:--"}`
+                              : `${item.start_time ? item.start_time.substring(0, 5) : "--:--"} s/d ${item.end_time ? item.end_time.substring(0, 5) : "--:--"}`;
+                            return (
+                              <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
+                                <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
+                                <td className="p-3 text-zinc-500 font-semibold">
+                                  <div className="text-zinc-700 font-bold">{dateStr}</div>
+                                  <div className="text-[10px] text-zinc-400 mt-0.5">{timeRange}</div>
+                                </td>
+                                <td className="p-3 text-zinc-650 max-w-[200px] truncate" title={item.reason}>{item.reason}</td>
+                                <td className="p-3 text-center">
+                                  {item.attachment ? (
+                                    <a
+                                      href={api.defaults.baseURL + "/../storage/" + item.attachment}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2 py-1 rounded-md"
+                                    >
+                                      <FileText className="h-3 w-3" />
+                                      Lihat Lampiran
+                                    </a>
+                                  ) : (
+                                    <span className="text-zinc-400">-</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                                    item.status === "approved"
+                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                      : item.status === "rejected"
+                                      ? "bg-rose-50 text-rose-700 border border-rose-100"
+                                      : item.status === "cancelled"
+                                      ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
+                                      : "bg-amber-50 text-amber-700 border border-amber-100"
+                                  }`}>
+                                    {item.status === "approved"
+                                      ? "DISETUJUI"
+                                      : item.status === "rejected"
+                                      ? "DITOLAK"
+                                      : item.status === "cancelled"
+                                      ? "DIBATALKAN"
+                                      : "DIPROSES"}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-center">
+                                  {item.status === "pending" ? (
+                                    <div className="flex gap-1.5 justify-center">
+                                      <button
+                                        onClick={() => approveWorkHourPermissionMutation.mutate(item.id)}
+                                        disabled={approveWorkHourPermissionMutation.isPending}
+                                        className="bg-emerald-650 hover:bg-emerald-700 text-white text-[10px] font-bold px-2 py-1 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                      >
+                                        Setujui
+                                      </button>
+                                      <button
+                                        onClick={() => handleOpenRejectModal(item.id, "work_hour")}
+                                        disabled={rejectWorkHourPermissionMutation.isPending}
+                                        className="bg-rose-650 hover:bg-rose-700 text-white text-[10px] font-bold px-2 py-1 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                      >
+                                        Tolak
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-zinc-400">-</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Pengaturan Area Absensi Kantor (Geofence Settings) */}
             {isAdmin && (
@@ -2777,6 +3122,113 @@ export default function AttendanceLeavePage() {
                 <button
                   type="button"
                   onClick={() => setIsLeaveHistoryModalOpen(false)}
+                  className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold px-5 py-2.5 rounded-lg transition-all cursor-pointer"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Detail Pengajuan Cuti / Izin */}
+        {isRequestDetailModalOpen && selectedDetailRequest && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm px-4">
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-2xl w-full max-w-lg p-6 overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-3 mb-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-blue-600" />
+                  <h3 className="text-sm font-bold text-zinc-950">Detail Pengajuan Perizinan</h3>
+                </div>
+                <button
+                  onClick={() => setIsRequestDetailModalOpen(false)}
+                  className="p-1 text-zinc-400 hover:text-zinc-700 rounded-lg cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4 my-2 text-xs text-zinc-700 overflow-y-auto max-h-[60vh]">
+                <div className="grid grid-cols-3 gap-2 py-1 border-b border-zinc-50">
+                  <span className="font-semibold text-zinc-400">Tipe Pengajuan</span>
+                  <span className="col-span-2 font-bold text-zinc-900">
+                    {selectedDetailRequest.type === "leave"
+                      ? selectedDetailRequest.data.type === "annual_leave" ? "Cuti Tahunan" : selectedDetailRequest.data.type === "sick_leave" ? "Sakit" : "Izin"
+                      : selectedDetailRequest.data.type === "arrive_late" ? "Izin Datang Terlambat" : selectedDetailRequest.data.type === "leave_early" ? "Izin Pulang Lebih Awal" : "Izin Keluar Sementara"
+                    }
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 py-1 border-b border-zinc-50">
+                  <span className="font-semibold text-zinc-400">Periode Waktu</span>
+                  <span className="col-span-2 font-semibold text-zinc-900">
+                    {selectedDetailRequest.type === "leave"
+                      ? `${formatIndonesianDate(selectedDetailRequest.data.start_date)} s/d ${formatIndonesianDate(selectedDetailRequest.data.end_date)}`
+                      : `${formatIndonesianDate(selectedDetailRequest.data.date)} (${selectedDetailRequest.data.type === "leave_early" 
+                          ? `Mulai ${selectedDetailRequest.data.start_time ? selectedDetailRequest.data.start_time.substring(0, 5) : "--:--"}`
+                          : `${selectedDetailRequest.data.start_time ? selectedDetailRequest.data.start_time.substring(0, 5) : "--:--"} s/d ${selectedDetailRequest.data.end_time ? selectedDetailRequest.data.end_time.substring(0, 5) : "--:--"}`})`
+                    }
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 py-1 border-b border-zinc-50">
+                  <span className="font-semibold text-zinc-400">Alasan</span>
+                  <span className="col-span-2 text-zinc-800 whitespace-pre-wrap">{selectedDetailRequest.data.reason}</span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 py-1 border-b border-zinc-50">
+                  <span className="font-semibold text-zinc-400">Status</span>
+                  <span className="col-span-2">
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                      selectedDetailRequest.data.status === "approved"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                        : selectedDetailRequest.data.status === "rejected"
+                        ? "bg-rose-50 text-rose-700 border border-rose-100"
+                        : selectedDetailRequest.data.status === "cancelled"
+                        ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
+                        : "bg-amber-50 text-amber-700 border border-amber-100"
+                    }`}>
+                      {selectedDetailRequest.data.status === "approved"
+                        ? "DISETUJUI"
+                        : selectedDetailRequest.data.status === "rejected"
+                        ? "DITOLAK"
+                        : selectedDetailRequest.data.status === "cancelled"
+                        ? "DIBATALKAN"
+                        : "DIPROSES"
+                      }
+                    </span>
+                  </span>
+                </div>
+
+                {selectedDetailRequest.data.rejection_reason && (
+                  <div className="grid grid-cols-3 gap-2 py-1 border-b border-zinc-50">
+                    <span className="font-semibold text-zinc-450 text-rose-600">Alasan Penolakan</span>
+                    <span className="col-span-2 text-rose-600 font-bold">{selectedDetailRequest.data.rejection_reason}</span>
+                  </div>
+                )}
+
+                {selectedDetailRequest.data.attachment && (
+                  <div className="grid grid-cols-3 gap-2 py-1">
+                    <span className="font-semibold text-zinc-400">Lampiran</span>
+                    <span className="col-span-2">
+                      <a
+                        href={api.defaults.baseURL + "/../storage/" + selectedDetailRequest.data.attachment}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-bold px-2.5 py-1 rounded-md transition-all"
+                      >
+                        <FileText className="h-3 w-3" />
+                        Lihat Lampiran
+                      </a>
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-zinc-100 flex justify-end shrink-0 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsRequestDetailModalOpen(false)}
                   className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold px-5 py-2.5 rounded-lg transition-all cursor-pointer"
                 >
                   Tutup
