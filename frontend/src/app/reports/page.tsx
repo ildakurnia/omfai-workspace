@@ -391,7 +391,7 @@ export default function ReportsPage() {
                         {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason) && (
                           <div className="flex items-center gap-1 text-orange-600 font-bold">
                             <span>🌙</span>
-                            <span>Lembur: {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason)}</span>
+                            <span>Time Log: {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason)}</span>
                           </div>
                         )}
                       </div>
@@ -399,7 +399,7 @@ export default function ReportsPage() {
                     <td className="py-5 pl-4 pr-6 md:pr-8 max-w-xs break-words text-xs">
                       {act.status === "on_hold" && act.hold_reason && (
                         <div className="text-orange-700 font-bold bg-orange-50/50 border border-orange-100 p-2 rounded-lg text-xs mb-1">
-                          Kendala: {act.hold_reason}
+                          Kendala: {act.hold_reason ? act.hold_reason.replace(/Lembur/g, "Time Log") : ""}
                         </div>
                       )}
                       {act.reference_link && (

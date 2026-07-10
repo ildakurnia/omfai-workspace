@@ -154,13 +154,13 @@
                         </span>
                         @if(!empty($activity->overtime_duration_formatted))
                             <div style="color: #FF8200; font-size: 8.5px; margin-top: 5px; font-weight: bold;">
-                                🌙 Lembur:<br>{{ $activity->overtime_duration_formatted }}
+                                🌙 Time Log:<br>{{ $activity->overtime_duration_formatted }}
                             </div>
                         @endif
                     </td>
                     <td>
                         @if($activity->status->value == 'on_hold' && $activity->hold_reason)
-                            <strong>Kendala:</strong> {{ $activity->hold_reason }}
+                            <strong>Kendala:</strong> {{ str_replace('Lembur', 'Time Log', $activity->hold_reason) }}
                         @endif
 
                         @if($activity->reference_link)
@@ -184,7 +184,7 @@
             @endforelse
             @if(isset($is_overtime_only) && $is_overtime_only && count($activities) > 0)
                 <tr style="background-color: #fffaf0; font-weight: bold;">
-                    <td colspan="4" style="text-align: right; padding: 10px; border-top: 2px solid #FF8200; border-bottom: 2px solid #FF8200;">Total Seluruh Lembur:</td>
+                    <td colspan="4" style="text-align: right; padding: 10px; border-top: 2px solid #FF8200; border-bottom: 2px solid #FF8200;">Total Seluruh Time Log:</td>
                     <td colspan="2" style="color: #FF8200; padding: 10px; border-top: 2px solid #FF8200; border-bottom: 2px solid #FF8200; font-size: 12px;">{{ $total_overtime_formatted }}</td>
                 </tr>
             @endif

@@ -842,7 +842,7 @@ export default function DashboardPage() {
                         {formatActiveOvertimeDuration(act.createdAt, act.completedAt, act.logs, holidaySet, act.holdReason) && (
                           <div className="flex items-center gap-1 text-xs text-orange-600 font-bold">
                             <span>🌙</span>
-                            <span>Lembur: {formatActiveOvertimeDuration(act.createdAt, act.completedAt, act.logs, holidaySet, act.holdReason)}</span>
+                            <span>Time Log: {formatActiveOvertimeDuration(act.createdAt, act.completedAt, act.logs, holidaySet, act.holdReason)}</span>
                           </div>
                         )}
                       </div>
@@ -915,7 +915,7 @@ export default function DashboardPage() {
                         </div>
                       )}
                       <div className="text-sm text-orange-700 font-semibold mt-1.5 bg-white border border-orange-150 px-2 py-1 rounded-lg break-words whitespace-pre-wrap">
-                        <strong>Kendala:</strong> {renderTextWithLinks(act.holdReason)}
+                        <strong>Kendala:</strong> {renderTextWithLinks(act.holdReason ? act.holdReason.replace(/Lembur/g, "Time Log") : "")}
                       </div>
                       {roles.includes("Owner") && (
                         <button
@@ -1405,7 +1405,7 @@ export default function DashboardPage() {
                         {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason) && (
                           <div className="flex items-center gap-1 text-orange-600 font-bold">
                             <span>🌙</span>
-                            <span>Lembur: {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason)}</span>
+                            <span>Time Log: {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason)}</span>
                           </div>
                         )}
                       </div>
@@ -1413,7 +1413,7 @@ export default function DashboardPage() {
                     <td className="py-3.5 pl-4 max-w-xs text-sm">
                       {act.status === "on_hold" && act.hold_reason && (
                         <span className="text-orange-700 font-bold bg-orange-50 border border-orange-100 px-2 py-1 rounded-lg">
-                          Kendala: {act.hold_reason}
+                          Kendala: {act.hold_reason ? act.hold_reason.replace(/Lembur/g, "Time Log") : ""}
                         </span>
                       )}
                       {act.reference_link && (

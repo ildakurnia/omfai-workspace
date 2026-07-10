@@ -1998,7 +1998,7 @@ export default function AttendanceLeavePage() {
                     }`}
                   >
                     <div className="space-y-1.5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Lembur</span>
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Time Log</span>
                       <div className="text-xl font-extrabold text-amber-600">
                         {adminSelectedEmpActivitiesLoading ? (
                           <Loader2 className="h-4.5 w-4.5 animate-spin text-amber-600 inline" />

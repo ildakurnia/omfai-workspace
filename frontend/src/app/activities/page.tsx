@@ -138,11 +138,11 @@ export default function ActivitiesPage() {
         progress_note: activity.progress_note || "",
       });
       
-      showAlert("Sesi lembur berhasil dimulai.", "success", "Lembur Dimulai");
+      showAlert("Sesi Time Log berhasil dimulai.", "success", "Time Log Dimulai");
       queryClient.invalidateQueries({ queryKey: ["activities"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
     } catch (err: any) {
-      showAlert(err.response?.data?.message || "Gagal memulai lembur.", "error", "Gagal");
+      showAlert(err.response?.data?.message || "Gagal memulai Time Log.", "error", "Gagal");
     }
   };
 
@@ -157,11 +157,11 @@ export default function ActivitiesPage() {
         progress_note: activity.progress_note || "",
       });
       
-      showAlert("Sesi lembur dihentikan.", "info", "Lembur Selesai");
+      showAlert("Sesi Time Log dihentikan.", "info", "Time Log Selesai");
       queryClient.invalidateQueries({ queryKey: ["activities"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
     } catch (err: any) {
-      showAlert(err.response?.data?.message || "Gagal menghentikan lembur.", "error", "Gagal");
+      showAlert(err.response?.data?.message || "Gagal menghentikan Time Log.", "error", "Gagal");
     }
   };
 
@@ -741,7 +741,7 @@ export default function ActivitiesPage() {
                           {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason) && (
                             <div className="flex items-center gap-1 text-orange-600 font-bold">
                               <span className="shrink-0">🌙</span>
-                              <span>Lembur: {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason)}</span>
+                              <span>Time Log: {formatActiveOvertimeDuration(act.created_at, act.completed_at, act.logs, holidaySet, act.hold_reason)}</span>
                             </div>
                           )}
                         </div>
@@ -749,7 +749,7 @@ export default function ActivitiesPage() {
                        <td className="py-5 px-4 max-w-xs break-words">
                         {act.status === "on_hold" && act.hold_reason && (
                           <div className="text-orange-700 font-bold bg-orange-50/50 border border-orange-100 p-2 rounded-lg text-xs mb-1">
-                            Kendala: {act.hold_reason}
+                            Kendala: {act.hold_reason ? act.hold_reason.replace(/Lembur/g, "Time Log") : ""}
                           </div>
                         )}
                         <div className="flex flex-col gap-1.5 mt-1">
@@ -837,7 +837,7 @@ export default function ActivitiesPage() {
                                                 className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-bold text-orange-600 hover:bg-orange-50/40 cursor-pointer"
                                               >
                                                 <Moon className="h-4 w-4 text-orange-500" />
-                                                Mulai Lembur
+                                                Mulai Time Log
                                               </button>
                                             ) : (
                                               <button
@@ -848,7 +848,7 @@ export default function ActivitiesPage() {
                                                 className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-bold text-orange-600 hover:bg-orange-50/40 cursor-pointer"
                                               >
                                                 <Pause className="h-4 w-4 text-orange-500" />
-                                                Selesai Lembur
+                                                Selesai Time Log
                                               </button>
                                             )
                                           ) : (
@@ -887,7 +887,7 @@ export default function ActivitiesPage() {
                                               className="flex w-full items-center gap-2 px-3.5 py-2 text-xs font-bold text-orange-600 hover:bg-orange-50/40 cursor-pointer"
                                             >
                                               <Moon className="h-4 w-4 text-orange-500" />
-                                              Mulai Lembur
+                                              Mulai Time Log
                                             </button>
                                           ) : (
                                             <button
