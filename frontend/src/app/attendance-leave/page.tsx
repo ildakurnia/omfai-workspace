@@ -45,6 +45,27 @@ const leaveSchema = z.object({
 
 type LeaveFormValues = z.infer<typeof leaveSchema>;
 
+function ExpandableText({ text, maxLength = 30 }: { text: string; maxLength?: number }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (!text) return <span className="text-zinc-400">-</span>;
+  if (text.length <= maxLength) return <span className="break-words whitespace-normal">{text}</span>;
+
+  const displayText = isExpanded ? text : `${text.slice(0, maxLength)}...`;
+
+  return (
+    <div className="break-words whitespace-normal">
+      <span className="text-zinc-700 font-medium">{displayText}</span>{" "}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="text-[#FF8200] hover:text-orange-700 text-[10px] font-extrabold uppercase cursor-pointer select-none inline-block focus:outline-none hover:underline ml-1"
+      >
+        {isExpanded ? "Sembunyikan" : "Selengkapnya"}
+      </button>
+    </div>
+  );
+}
+
 export default function AttendanceLeavePage() {
   const queryClient = useQueryClient();
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -2040,7 +2061,7 @@ export default function AttendanceLeavePage() {
                                   <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
                                     <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
                                     <td className="p-3 text-zinc-500 font-semibold">{start} s/d {end}</td>
-                                    <td className="p-3 text-zinc-650 max-w-[200px] truncate" title={item.reason}>{item.reason}</td>
+                                    <td className="p-3 text-zinc-650 max-w-[200px]"><ExpandableText text={item.reason} /></td>
                                     <td className="p-3 text-center">
                                       {item.attachment ? (
                                         <a
@@ -2132,7 +2153,7 @@ export default function AttendanceLeavePage() {
                                       <div className="text-zinc-700 font-bold">{dateStr}</div>
                                       <div className="text-xs text-zinc-400 mt-0.5">{timeRange}</div>
                                     </td>
-                                    <td className="p-3 text-zinc-650 max-w-[200px] truncate" title={item.reason}>{item.reason}</td>
+                                    <td className="p-3 text-zinc-650 max-w-[200px]"><ExpandableText text={item.reason} /></td>
                                     <td className="p-3 text-center">
                                       {item.attachment ? (
                                         <a
@@ -3070,7 +3091,7 @@ export default function AttendanceLeavePage() {
                             <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
                               <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
                               <td className="p-3 text-zinc-500 font-semibold">{start} s/d {end}</td>
-                              <td className="p-3 text-zinc-650 max-w-[300px] truncate" title={item.reason}>{item.reason}</td>
+                              <td className="p-3 text-zinc-650 max-w-[300px]"><ExpandableText text={item.reason} /></td>
                                <td className="p-3 text-center">
                                  <div className="flex flex-col items-center gap-1.5 justify-center">
                                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
@@ -3146,7 +3167,7 @@ export default function AttendanceLeavePage() {
                                 <div className="text-zinc-700 font-bold">{dateStr}</div>
                                 <div className="text-[10px] text-zinc-400 mt-0.5">{timeRange}</div>
                               </td>
-                              <td className="p-3 text-zinc-650 max-w-[300px] truncate" title={item.reason}>{item.reason}</td>
+                              <td className="p-3 text-zinc-650 max-w-[300px]"><ExpandableText text={item.reason} /></td>
                               <td className="p-3 text-center">
                                 <div className="flex flex-col items-center gap-1.5 justify-center">
                                   <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
