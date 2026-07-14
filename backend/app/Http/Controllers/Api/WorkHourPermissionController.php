@@ -27,7 +27,7 @@ class WorkHourPermissionController extends Controller
             ], 403);
         }
 
-        $query = WorkHourPermission::with('employee')
+        $query = WorkHourPermission::with('employee.user')
             ->orderBy('created_at', 'desc');
 
         if ($request->has('status')) {

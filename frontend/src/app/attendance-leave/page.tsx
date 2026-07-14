@@ -1195,6 +1195,24 @@ export default function AttendanceLeavePage() {
   const isTodayOnLeave = cachedState.isLeave;
   const showLoading = !cachedState.hasLoaded && (attendanceLoading || leaveLoading);
 
+  // Parse year and month values for dropdowns
+  const [yearVal, monthVal] = selectedMonth.split("-");
+  const monthsList = [
+    { value: "01", label: "Januari" },
+    { value: "02", label: "Februari" },
+    { value: "03", label: "Maret" },
+    { value: "04", label: "April" },
+    { value: "05", label: "Mei" },
+    { value: "06", label: "Juni" },
+    { value: "07", label: "Juli" },
+    { value: "08", label: "Agustus" },
+    { value: "09", label: "September" },
+    { value: "10", label: "Oktober" },
+    { value: "11", label: "November" },
+    { value: "12", label: "Desember" }
+  ];
+  const yearsList = ["2024", "2025", "2026", "2027", "2028"];
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -1379,31 +1397,56 @@ export default function AttendanceLeavePage() {
 
             {/* Rekap Absensi Bulanan - Melintang Penuh */}
             <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-6">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-[#FF8200]" />
+              {/* Header Title */}
+              <div className="flex items-center gap-2 border-b border-zinc-100 pb-3.5">
+                <div className="p-1.5 rounded-lg bg-orange-50 text-[#FF8200] flex items-center justify-center shrink-0">
+                  <Calendar className="h-4 w-4" />
+                </div>
+                <h3 className="text-base font-bold text-zinc-955">
                   Rekap Absensi Bulanan
                 </h3>
-                
-                {/* Actions & Filters */}
-                <div className="flex flex-wrap items-center gap-3">
-                  {/* Sisa Cuti Karyawan */}
-                  {leaveHistory && (
-                    <div className="bg-blue-50 text-blue-800 border border-blue-155 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5 text-blue-600" />
-                      <span>Sisa Cuti: <span className="text-blue-700 font-extrabold">{leaveHistory.is_eligible ? `${leaveHistory.leave_balance} Hari` : "0 Hari"}</span></span>
-                    </div>
-                  )}
-                  {/* Filter Bulan */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">Periode:</span>
-                    <input
-                      type="month"
-                      value={selectedMonth}
-                      onChange={(e) => setSelectedMonth(e.target.value)}
-                      className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-[#FF8200] bg-white cursor-pointer font-semibold"
-                    />
+              </div>
+
+              {/* Filters & Actions Panel */}
+              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-4 bg-zinc-50/50 p-4 rounded-xl border border-zinc-150">
+                {/* Select Bulan */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-zinc-500 font-bold uppercase tracking-wider shrink-0">Bulan:</span>
+                  <select
+                    value={monthVal}
+                    onChange={(e) => setSelectedMonth(`${yearVal}-${e.target.value}`)}
+                    className="border border-zinc-200 rounded-lg px-3.5 py-2.5 text-base text-zinc-800 focus:outline-none focus:ring-2 focus:ring-[#FF8200] bg-white cursor-pointer font-bold"
+                  >
+                    {monthsList.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Select Tahun */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-zinc-500 font-bold uppercase tracking-wider shrink-0">Tahun:</span>
+                  <select
+                    value={yearVal}
+                    onChange={(e) => setSelectedMonth(`${e.target.value}-${monthVal}`)}
+                    className="border border-zinc-200 rounded-lg px-3.5 py-2.5 text-base text-zinc-800 focus:outline-none focus:ring-2 focus:ring-[#FF8200] bg-white cursor-pointer font-bold"
+                  >
+                    {yearsList.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Sisa Cuti Karyawan */}
+                {leaveHistory && (
+                  <div className="bg-blue-50 text-blue-800 border border-blue-155 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5 text-blue-600" />
+                    <span>Sisa Cuti: <span className="text-blue-700 font-extrabold">{leaveHistory.is_eligible ? `${leaveHistory.leave_balance} Hari` : "0 Hari"}</span></span>
                   </div>
+                )}
+
+                {/* Actions (pushed to far right) */}
+                <div className="flex flex-wrap items-center gap-3 sm:ml-auto">
 
                   {/* Tombol Ajukan Izin Jam Kerja */}
                   <button
@@ -1663,23 +1706,17 @@ export default function AttendanceLeavePage() {
           <div className="space-y-6">
             
             {/* Panel Approval Cuti (Leave Approval) */}
-            <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-4">
-              <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
-                <UserCheck className="h-4 w-4 text-blue-600" />
-                Persetujuan Cuti & Izin Karyawan (Pending)
-              </h3>
-              <div className="overflow-x-auto">
-                {allLeavesLoading ? (
-                  <div className="p-8 flex justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            {!allLeavesLoading && allLeaveRequests && allLeaveRequests.filter((r: any) => r.status === "pending").length > 0 && (
+              <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-4">
+                <h3 className="text-base font-bold text-zinc-955 flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <UserCheck className="h-4 w-4" />
                   </div>
-                ) : !allLeaveRequests || allLeaveRequests.filter((r: any) => r.status === "pending").length === 0 ? (
-                  <div className="text-center py-8 text-zinc-400 text-xs">
-                    Tidak ada pengajuan cuti/izin pending saat ini.
-                  </div>
-                ) : (
-                  <table className="w-full divide-y divide-zinc-150 text-left text-xs">
-                    <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider">
+                  Persetujuan Cuti & Izin Karyawan (Pending)
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full divide-y divide-zinc-150 text-left text-sm">
+                    <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider text-xs">
                       <tr>
                         <th className="p-3.5">Karyawan (ID)</th>
                         <th className="p-3.5">Tipe</th>
@@ -1698,9 +1735,19 @@ export default function AttendanceLeavePage() {
                             <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
                               <td className="p-3.5">
                                 <div className="text-zinc-900 font-bold">{item.employee?.name}</div>
-                                <div className="text-[10px] text-zinc-400 font-mono font-bold mt-0.5">{item.employee?.employee_code}</div>
+                                <div className="text-xs text-zinc-400 font-mono font-bold mt-0.5">{item.employee?.employee_code}</div>
                               </td>
-                              <td className="p-3.5 text-zinc-800 font-bold">{typeLabel}</td>
+                              <td className="p-3.5 text-zinc-800 font-bold">
+                                <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full border ${
+                                  item.type === "annual_leave" 
+                                    ? "bg-blue-50 text-blue-700 border-blue-100" 
+                                    : item.type === "sick_leave" 
+                                    ? "bg-rose-50 text-rose-700 border-rose-100" 
+                                    : "bg-amber-50 text-amber-700 border-amber-100"
+                                }`}>
+                                  {typeLabel}
+                                </span>
+                              </td>
                               <td className="p-3.5 text-zinc-500 font-semibold">
                                 {formatIndonesianDate(item.start_date)} s/d {formatIndonesianDate(item.end_date)}
                               </td>
@@ -1713,9 +1760,9 @@ export default function AttendanceLeavePage() {
                                     href={api.defaults.baseURL + "/../storage/" + item.attachment}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2 py-1 rounded-md"
+                                    className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2.5 py-1.5 rounded-md text-xs"
                                   >
-                                    <FileText className="h-3 w-3" />
+                                    <FileText className="h-3.5 w-3.5" />
                                     Lihat Lampiran
                                   </a>
                                 ) : (
@@ -1727,14 +1774,14 @@ export default function AttendanceLeavePage() {
                                   <button
                                     onClick={() => approveLeaveMutation.mutate(item.id)}
                                     disabled={approveLeaveMutation.isPending}
-                                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold cursor-pointer transition-all"
+                                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 px-3 py-2 rounded-lg flex items-center gap-1.5 text-xs font-bold cursor-pointer transition-all disabled:opacity-50"
                                   >
                                     <Check className="h-3 w-3" />
                                     Setujui
                                   </button>
                                   <button
                                     onClick={() => handleOpenRejectModal(item.id)}
-                                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold cursor-pointer transition-all"
+                                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-2 rounded-lg flex items-center gap-1.5 text-xs font-bold cursor-pointer transition-all"
                                   >
                                     <Ban className="h-3 w-3" />
                                     Tolak
@@ -1746,28 +1793,22 @@ export default function AttendanceLeavePage() {
                         })}
                     </tbody>
                   </table>
-                )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Panel Approval Izin Jam Kerja (Work Hour Permission Approval) */}
-            <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-4">
-              <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
-                <Clock className="h-4 w-4 text-blue-600" />
-                Persetujuan Izin Jam Kerja Karyawan (Pending)
-              </h3>
-              <div className="overflow-x-auto">
-                {allWorkHourPermissionsLoading ? (
-                  <div className="p-8 flex justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            {!allWorkHourPermissionsLoading && allWorkHourPermissions && allWorkHourPermissions.filter((r: any) => r.status === "pending").length > 0 && (
+              <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-4">
+                <h3 className="text-base font-bold text-zinc-955 flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                    <Clock className="h-4 w-4" />
                   </div>
-                ) : !allWorkHourPermissions || allWorkHourPermissions.filter((r: any) => r.status === "pending").length === 0 ? (
-                  <div className="text-center py-8 text-zinc-400 text-xs">
-                    Tidak ada pengajuan izin jam kerja pending saat ini.
-                  </div>
-                ) : (
-                  <table className="w-full divide-y divide-zinc-150 text-left text-xs">
-                    <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider">
+                  Persetujuan Izin Jam Kerja Karyawan (Pending)
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full divide-y divide-zinc-150 text-left text-sm">
+                    <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider text-xs">
                       <tr>
                         <th className="p-3.5">Karyawan (ID)</th>
                         <th className="p-3.5">Tipe Izin</th>
@@ -1789,12 +1830,22 @@ export default function AttendanceLeavePage() {
                             <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
                               <td className="p-3.5">
                                 <div className="text-zinc-900 font-bold">{item.employee?.name}</div>
-                                <div className="text-[10px] text-zinc-400 font-mono font-bold mt-0.5">{item.employee?.employee_code}</div>
+                                <div className="text-xs text-zinc-400 font-mono font-bold mt-0.5">{item.employee?.employee_code}</div>
                               </td>
-                              <td className="p-3.5 text-zinc-800 font-bold">{typeLabel}</td>
+                              <td className="p-3.5 text-zinc-800 font-bold">
+                                <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full border ${
+                                  item.type === "arrive_late" 
+                                    ? "bg-amber-50 text-amber-700 border-amber-100" 
+                                    : item.type === "leave_early" 
+                                    ? "bg-violet-50 text-violet-700 border-violet-100" 
+                                    : "bg-purple-50 text-purple-700 border-purple-100"
+                                }`}>
+                                  {typeLabel}
+                                </span>
+                              </td>
                               <td className="p-3.5 text-zinc-500 font-semibold">
-                                <div className="text-zinc-700 font-bold">{formatIndonesianDate(item.date)}</div>
-                                <div className="text-[10px] text-zinc-400 mt-0.5">{timeRange}</div>
+                                <div className="text-zinc-700 font-bold text-sm">{formatIndonesianDate(item.date)}</div>
+                                <div className="text-xs text-zinc-400 mt-0.5">{timeRange}</div>
                               </td>
                               <td className="p-3.5 text-zinc-650 max-w-[200px]" title={item.reason}>
                                 {item.reason}
@@ -1805,9 +1856,9 @@ export default function AttendanceLeavePage() {
                                     href={api.defaults.baseURL + "/../storage/" + item.attachment}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2 py-1 rounded-md"
+                                    className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2.5 py-1.5 rounded-md text-xs"
                                   >
-                                    <FileText className="h-3 w-3" />
+                                    <FileText className="h-3.5 w-3.5" />
                                     Lihat Lampiran
                                   </a>
                                 ) : (
@@ -1819,14 +1870,14 @@ export default function AttendanceLeavePage() {
                                   <button
                                     onClick={() => approveWorkHourPermissionMutation.mutate(item.id)}
                                     disabled={approveWorkHourPermissionMutation.isPending}
-                                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold cursor-pointer transition-all"
+                                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 px-3 py-2 rounded-lg flex items-center gap-1.5 text-xs font-bold cursor-pointer transition-all disabled:opacity-50"
                                   >
                                     <Check className="h-3 w-3" />
                                     Setujui
                                   </button>
                                   <button
                                     onClick={() => handleOpenRejectModal(item.id, "work_hour")}
-                                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-1.5 rounded-lg flex items-center gap-1 font-bold cursor-pointer transition-all"
+                                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-2 rounded-lg flex items-center gap-1.5 text-xs font-bold cursor-pointer transition-all"
                                   >
                                     <Ban className="h-3 w-3" />
                                     Tolak
@@ -1838,531 +1889,556 @@ export default function AttendanceLeavePage() {
                         })}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* Rekap Absensi Bulanan Karyawan Terpilih */}
+            <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-6">
+              {/* Header Title */}
+              <div className="flex items-center gap-2 border-b border-zinc-100 pb-3.5">
+                <div className="p-1.5 rounded-lg bg-orange-50 text-[#FF8200] flex items-center justify-center shrink-0">
+                  <Calendar className="h-4 w-4" />
+                </div>
+                <h3 className="text-base font-bold text-zinc-955">
+                  Pemantauan Absensi Bulanan Karyawan
+                </h3>
+              </div>
+
+              {/* Filters Panel */}
+              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-4 bg-zinc-50/50 p-4 rounded-xl border border-zinc-150">
+                {/* Select Karyawan */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-zinc-500 font-bold uppercase tracking-wider shrink-0">Karyawan:</span>
+                  <select
+                    value={selectedEmployeeId}
+                    onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                    className="border border-zinc-200 rounded-lg px-3.5 py-2.5 text-base text-zinc-800 focus:outline-none focus:ring-2 focus:ring-[#FF8200] bg-white cursor-pointer font-bold min-w-[200px]"
+                  >
+                    {employees && employees.map((emp: any) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.employee.employee_code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Select Bulan */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-zinc-500 font-bold uppercase tracking-wider shrink-0">Bulan:</span>
+                  <select
+                    value={monthVal}
+                    onChange={(e) => setSelectedMonth(`${yearVal}-${e.target.value}`)}
+                    className="border border-zinc-200 rounded-lg px-3.5 py-2.5 text-base text-zinc-800 focus:outline-none focus:ring-2 focus:ring-[#FF8200] bg-white cursor-pointer font-bold"
+                  >
+                    {monthsList.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Select Tahun */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-zinc-500 font-bold uppercase tracking-wider shrink-0">Tahun:</span>
+                  <select
+                    value={yearVal}
+                    onChange={(e) => setSelectedMonth(`${e.target.value}-${monthVal}`)}
+                    className="border border-zinc-200 rounded-lg px-3.5 py-2.5 text-base text-zinc-800 focus:outline-none focus:ring-2 focus:ring-[#FF8200] bg-white cursor-pointer font-bold"
+                  >
+                    {yearsList.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Sisa Cuti Karyawan Terpilih */}
+                {selectedEmployeeId && adminSelectedEmpAttendance?.employee && (
+                  <div className="bg-blue-50 text-blue-800 border border-blue-155 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5 text-blue-600" />
+                    <span>
+                      Sisa Cuti Karyawan:{" "}
+                      <span className="text-blue-700 font-extrabold">
+                        {isEmployeeLeaveEligible(adminSelectedEmpAttendance.employee.joined_at)
+                          ? `${adminSelectedEmpAttendance.employee.leave_balance} Hari`
+                          : "0 Hari (Belum 1 Tahun Kerja)"}
+                      </span>
+                    </span>
+                  </div>
                 )}
               </div>
             </div>
 
-            {/* Rekap Absensi Bulanan Karyawan Terpilih */}
-            <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-6">
-              <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-[#FF8200]" />
-                  Pemantauan Absensi Bulanan Karyawan
-                </h3>
-                
-                {/* Filters */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                  {/* Select Karyawan */}
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider shrink-0">Karyawan:</span>
-                    <select
-                      value={selectedEmployeeId}
-                      onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                      className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#FF8200] bg-white cursor-pointer font-bold w-full sm:w-48"
-                    >
-                      {employees && employees.map((emp: any) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.name} ({emp.employee.employee_code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {/* Sisa Cuti Karyawan Terpilih */}
-                  {selectedEmployeeId && adminSelectedEmpAttendance?.employee && (
-                    <div className="bg-blue-50 text-blue-800 border border-blue-155 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0">
-                      <FileText className="h-3.5 w-3.5 text-blue-600" />
-                      <span>
-                        Sisa Cuti Karyawan:{" "}
-                        <span className="text-blue-700 font-extrabold">
-                          {isEmployeeLeaveEligible(adminSelectedEmpAttendance.employee.joined_at)
-                            ? `${adminSelectedEmpAttendance.employee.leave_balance} Hari`
-                            : "0 Hari (Belum 1 Tahun Kerja)"}
-                        </span>
-                      </span>
-                    </div>
-                  )}
-                  {/* Select Bulan */}
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider shrink-0">Periode:</span>
-                    <input
-                      type="month"
-                      value={selectedMonth}
-                      onChange={(e) => setSelectedMonth(e.target.value)}
-                      className="border border-zinc-200 rounded-lg px-2.5 py-1.5 text-xs text-zinc-700 focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-[#FF8200] bg-white cursor-pointer font-semibold w-full sm:w-auto"
-                    />
-                  </div>
+            {selectedEmployeeId && (
+              adminSelectedEmpLoading ? (
+                <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-12 flex justify-center items-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-[#FF8200]" />
                 </div>
-              </div>
+              ) : adminSelectedEmpAttendance?.employee && (
+                <div className="space-y-6">
+                  {/* Riwayat Pengajuan Perizinan & Cuti Karyawan Terpilih (All-time History) */}
+                  <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-6">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                      <div>
+                        <h3 className="text-base font-bold text-zinc-950 flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-orange-50 text-[#FF8200] flex items-center justify-center shrink-0">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          Riwayat Pengajuan Perizinan & Cuti Karyawan
+                        </h3>
+                        <p className="text-xs text-zinc-400 font-medium mt-1">
+                          Menampilkan semua riwayat pengajuan milik: <span className="font-bold text-zinc-700">{adminSelectedEmpAttendance.name}</span>
+                        </p>
+                      </div>
 
-              {/* Rekap Absensi Stats Grid Admin */}
-              {selectedEmployeeId && !adminSelectedEmpLoading && (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                  <div
-                    onClick={() => setAttendanceFilter(attendanceFilter === "present" ? null : "present")}
-                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
-                      attendanceFilter === "present"
-                        ? "border-emerald-500 ring-2 ring-emerald-500/10 bg-emerald-50/20"
-                        : attendanceFilter
-                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
-                        : "border-zinc-150 bg-zinc-50/30"
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tepat Waktu</span>
-                      <div className="text-xl font-extrabold text-emerald-600">{adminTotalPresent} Hari</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
-                      <UserCheck className="h-5 w-5" />
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => setAttendanceFilter(attendanceFilter === "late" ? null : "late")}
-                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
-                      attendanceFilter === "late"
-                        ? "border-amber-500 ring-2 ring-amber-500/10 bg-amber-50/20"
-                        : attendanceFilter
-                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
-                        : "border-zinc-150 bg-zinc-50/30"
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Terlambat</span>
-                      <div className="text-xl font-extrabold text-amber-600">{adminTotalLate} Hari</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
-                      <Clock className="h-5 w-5" />
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => setAttendanceFilter(attendanceFilter === "leave" ? null : "leave")}
-                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
-                      attendanceFilter === "leave"
-                        ? "border-blue-500 ring-2 ring-blue-500/10 bg-blue-50/20"
-                        : attendanceFilter
-                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
-                        : "border-zinc-150 bg-zinc-50/30"
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Izin & Cuti</span>
-                      <div className="text-xl font-extrabold text-blue-600">{adminTotalLeave} Hari</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
-                      <FileText className="h-5 w-5" />
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => setAttendanceFilter(attendanceFilter === "wh_permission" ? null : "wh_permission")}
-                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
-                      attendanceFilter === "wh_permission"
-                        ? "border-purple-500 ring-2 ring-purple-500/10 bg-purple-50/20"
-                        : attendanceFilter
-                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
-                        : "border-zinc-150 bg-zinc-50/30"
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Izin Jam Kerja</span>
-                      <div className="text-xl font-extrabold text-purple-600">{adminTotalWhPermissions} Hari</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
-                      <Timer className="h-5 w-5" />
-                    </div>
-                  </div>
-
-                  <div
-                    onClick={() => setAttendanceFilter(attendanceFilter === "absent" ? null : "absent")}
-                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
-                      attendanceFilter === "absent"
-                        ? "border-rose-500 ring-2 ring-rose-500/10 bg-rose-50/20"
-                        : attendanceFilter
-                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
-                        : "border-zinc-150 bg-zinc-50/30"
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tidak Hadir</span>
-                      <div className="text-xl font-extrabold text-rose-600">{adminTotalAbsent} Hari</div>
-                    </div>
-                    <div className="p-2.5 rounded-xl bg-rose-50 text-rose-600">
-                      <CalendarX className="h-5 w-5" />
-                    </div>
-                  </div>
-
-                  <div
-                    className={`transition-all duration-200 overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm ${
-                      attendanceFilter ? "opacity-50" : ""
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Time Log</span>
-                      <div className="text-xl font-extrabold text-amber-600">
-                        {adminSelectedEmpActivitiesLoading ? (
-                          <Loader2 className="h-4.5 w-4.5 animate-spin text-amber-600 inline" />
-                        ) : (
-                          adminOvertimeFormatted
-                        )}
+                      {/* Tabs */}
+                      <div className="flex border-b border-zinc-150 shrink-0">
+                        <button
+                          onClick={() => setAdminHistoryActiveTab("leave")}
+                          className={`px-3.5 py-2 text-sm font-bold border-b-2 cursor-pointer transition-all ${
+                            adminHistoryActiveTab === "leave"
+                              ? "border-[#FF8200] text-[#FF8200]"
+                              : "border-transparent text-zinc-400 hover:text-zinc-650"
+                          }`}
+                        >
+                          Cuti & Izin Harian
+                        </button>
+                        <button
+                          onClick={() => setAdminHistoryActiveTab("work_hour")}
+                          className={`px-3.5 py-2 text-sm font-bold border-b-2 cursor-pointer transition-all ${
+                            adminHistoryActiveTab === "work_hour"
+                              ? "border-[#FF8200] text-[#FF8200]"
+                              : "border-transparent text-zinc-400 hover:text-zinc-650"
+                          }`}
+                        >
+                          Izin Jam Kerja
+                        </button>
                       </div>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
-                      <Moon className="h-5 w-5" />
+
+                    <div className="overflow-x-auto max-h-[350px]">
+                      {adminHistoryActiveTab === "leave" ? (
+                        !adminSelectedEmpAttendance.employee.leave_requests || adminSelectedEmpAttendance.employee.leave_requests.length === 0 ? (
+                          <p className="text-xs text-zinc-400 py-12 text-center">Belum ada riwayat pengajuan cuti/izin.</p>
+                        ) : (
+                          <table className="w-full divide-y divide-zinc-150 text-left text-sm">
+                            <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider text-xs sticky top-0 z-10">
+                              <tr>
+                                <th className="p-3">Tipe Cuti</th>
+                                <th className="p-3">Periode</th>
+                                <th className="p-3">Alasan</th>
+                                <th className="p-3 text-center">Lampiran</th>
+                                <th className="p-3 text-center">Status</th>
+                                <th className="p-3 text-center">Aksi Persetujuan</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-100 font-medium">
+                              {adminSelectedEmpAttendance.employee.leave_requests.map((item: any) => {
+                                const start = formatIndonesianDate(item.start_date);
+                                const end = formatIndonesianDate(item.end_date);
+                                const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
+                                return (
+                                  <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
+                                    <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
+                                    <td className="p-3 text-zinc-500 font-semibold">{start} s/d {end}</td>
+                                    <td className="p-3 text-zinc-650 max-w-[200px] truncate" title={item.reason}>{item.reason}</td>
+                                    <td className="p-3 text-center">
+                                      {item.attachment ? (
+                                        <a
+                                          href={api.defaults.baseURL + "/../storage/" + item.attachment}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2.5 py-1.5 rounded-md text-xs"
+                                        >
+                                          <FileText className="h-3.5 w-3.5" />
+                                          Lihat Lampiran
+                                        </a>
+                                      ) : (
+                                        <span className="text-zinc-400">-</span>
+                                      )}
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                                        item.status === "approved"
+                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                          : item.status === "rejected"
+                                          ? "bg-rose-50 text-rose-700 border border-rose-100"
+                                          : item.status === "cancelled"
+                                          ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
+                                          : "bg-amber-50 text-amber-700 border border-amber-100"
+                                      }`}>
+                                        {item.status === "approved"
+                                          ? "DISETUJUI"
+                                          : item.status === "rejected"
+                                          ? "DITOLAK"
+                                          : item.status === "cancelled"
+                                          ? "DIBATALKAN"
+                                          : "DIPROSES"}
+                                      </span>
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      {item.status === "pending" ? (
+                                        <div className="flex gap-1.5 justify-center">
+                                          <button
+                                            onClick={() => approveLeaveMutation.mutate(item.id)}
+                                            disabled={approveLeaveMutation.isPending}
+                                            className="bg-emerald-650 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                          >
+                                            Setujui
+                                          </button>
+                                          <button
+                                            onClick={() => handleOpenRejectModal(item.id, "leave")}
+                                            disabled={rejectLeaveMutation.isPending}
+                                            className="bg-rose-650 hover:bg-rose-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                          >
+                                            Tolak
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <span className="text-zinc-400">-</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )
+                      ) : (
+                        !adminSelectedEmpAttendance.employee.work_hour_permissions || adminSelectedEmpAttendance.employee.work_hour_permissions.length === 0 ? (
+                          <p className="text-xs text-zinc-400 py-12 text-center">Belum ada riwayat pengajuan izin jam kerja.</p>
+                        ) : (
+                          <table className="w-full divide-y divide-zinc-150 text-left text-sm">
+                            <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider text-xs sticky top-0 z-10">
+                              <tr>
+                                <th className="p-3">Tipe Izin</th>
+                                <th className="p-3">Tanggal & Jam</th>
+                                <th className="p-3">Alasan</th>
+                                <th className="p-3 text-center">Lampiran</th>
+                                <th className="p-3 text-center">Status</th>
+                                <th className="p-3 text-center">Aksi Persetujuan</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-100 font-medium">
+                              {adminSelectedEmpAttendance.employee.work_hour_permissions.map((item: any) => {
+                                const dateStr = formatIndonesianDate(item.date);
+                                const typeLabel = item.type === "out_temporary" ? "Izin Keluar Sementara" : item.type === "arrive_late" ? "Izin Datang Terlambat" : "Izin Pulang Lebih Awal";
+                                const timeRange = (item.type === "leave_early") 
+                                  ? `Mulai ${item.start_time ? item.start_time.substring(0, 5) : "--:--"}`
+                                  : `${item.start_time ? item.start_time.substring(0, 5) : "--:--"} s/d ${item.end_time ? item.end_time.substring(0, 5) : "--:--"}`;
+                                return (
+                                  <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
+                                    <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
+                                    <td className="p-3 text-zinc-500 font-semibold">
+                                      <div className="text-zinc-700 font-bold">{dateStr}</div>
+                                      <div className="text-xs text-zinc-400 mt-0.5">{timeRange}</div>
+                                    </td>
+                                    <td className="p-3 text-zinc-650 max-w-[200px] truncate" title={item.reason}>{item.reason}</td>
+                                    <td className="p-3 text-center">
+                                      {item.attachment ? (
+                                        <a
+                                          href={api.defaults.baseURL + "/../storage/" + item.attachment}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2.5 py-1.5 rounded-md text-xs"
+                                        >
+                                          <FileText className="h-3.5 w-3.5" />
+                                          Lihat Lampiran
+                                        </a>
+                                      ) : (
+                                        <span className="text-zinc-400">-</span>
+                                      )}
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                                        item.status === "approved"
+                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                                          : item.status === "rejected"
+                                          ? "bg-rose-50 text-rose-700 border border-rose-100"
+                                          : item.status === "cancelled"
+                                          ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
+                                          : "bg-amber-50 text-amber-700 border border-amber-100"
+                                      }`}>
+                                        {item.status === "approved"
+                                          ? "DISETUJUI"
+                                          : item.status === "rejected"
+                                          ? "DITOLAK"
+                                          : item.status === "cancelled"
+                                          ? "DIBATALKAN"
+                                          : "DIPROSES"}
+                                      </span>
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      {item.status === "pending" ? (
+                                        <div className="flex gap-1.5 justify-center">
+                                          <button
+                                            onClick={() => approveWorkHourPermissionMutation.mutate(item.id)}
+                                            disabled={approveWorkHourPermissionMutation.isPending}
+                                            className="bg-emerald-650 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                          >
+                                            Setujui
+                                          </button>
+                                          <button
+                                            onClick={() => handleOpenRejectModal(item.id, "work_hour")}
+                                            disabled={rejectWorkHourPermissionMutation.isPending}
+                                            className="bg-rose-650 hover:bg-rose-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                          >
+                                            Tolak
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <span className="text-zinc-400">-</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )
+                      )}
                     </div>
                   </div>
 
-                  {/* Card Piala Tercepat Admin */}
-                  <div
-                    onClick={() => setAttendanceFilter(attendanceFilter === "earliest" ? null : "earliest")}
-                    className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
-                      attendanceFilter === "earliest"
-                        ? "border-amber-500 ring-2 ring-amber-500/10 bg-amber-50/20"
-                        : attendanceFilter
-                        ? "opacity-50 border-zinc-150 bg-zinc-50/30"
-                        : "border-zinc-150 bg-zinc-50/30"
-                    }`}
-                  >
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Piala Tercepat</span>
-                      <div className="text-xl font-extrabold text-amber-600">{adminTotalTrophies} Piala</div>
+                  {/* Rekap Absensi Bulanan Karyawan Terpilih (Calendar & Stats) */}
+                  <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-6">
+                    {/* Rekap Absensi Stats Grid Admin */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                      <div
+                        onClick={() => setAttendanceFilter(attendanceFilter === "present" ? null : "present")}
+                        className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                          attendanceFilter === "present"
+                            ? "border-emerald-500 ring-2 ring-emerald-500/10 bg-emerald-50/20"
+                            : attendanceFilter
+                            ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                            : "border-zinc-150 bg-zinc-50/30"
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tepat Waktu</span>
+                          <div className="text-xl font-extrabold text-emerald-600">{adminTotalPresent} Hari</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
+                          <UserCheck className="h-5 w-5" />
+                        </div>
+                      </div>
+
+                      <div
+                        onClick={() => setAttendanceFilter(attendanceFilter === "late" ? null : "late")}
+                        className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                          attendanceFilter === "late"
+                            ? "border-amber-500 ring-2 ring-amber-500/10 bg-amber-50/20"
+                            : attendanceFilter
+                            ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                            : "border-zinc-150 bg-zinc-50/30"
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Terlambat</span>
+                          <div className="text-xl font-extrabold text-amber-600">{adminTotalLate} Hari</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
+                          <Clock className="h-5 w-5" />
+                        </div>
+                      </div>
+
+                      <div
+                        onClick={() => setAttendanceFilter(attendanceFilter === "leave" ? null : "leave")}
+                        className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                          attendanceFilter === "leave"
+                            ? "border-blue-500 ring-2 ring-blue-500/10 bg-blue-50/20"
+                            : attendanceFilter
+                            ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                            : "border-zinc-150 bg-zinc-50/30"
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Izin & Cuti</span>
+                          <div className="text-xl font-extrabold text-blue-600">{adminTotalLeave} Hari</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
+                          <FileText className="h-5 w-5" />
+                        </div>
+                      </div>
+
+                      <div
+                        onClick={() => setAttendanceFilter(attendanceFilter === "wh_permission" ? null : "wh_permission")}
+                        className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                          attendanceFilter === "wh_permission"
+                            ? "border-purple-500 ring-2 ring-purple-500/10 bg-purple-50/20"
+                            : attendanceFilter
+                            ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                            : "border-zinc-150 bg-zinc-50/30"
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Izin Jam Kerja</span>
+                          <div className="text-xl font-extrabold text-purple-600">{adminTotalWhPermissions} Hari</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
+                          <Timer className="h-5 w-5" />
+                        </div>
+                      </div>
+
+                      <div
+                        onClick={() => setAttendanceFilter(attendanceFilter === "absent" ? null : "absent")}
+                        className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                          attendanceFilter === "absent"
+                            ? "border-rose-500 ring-2 ring-rose-500/10 bg-rose-50/20"
+                            : attendanceFilter
+                            ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                            : "border-zinc-150 bg-zinc-50/30"
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tidak Hadir</span>
+                          <div className="text-xl font-extrabold text-rose-600">{adminTotalAbsent} Hari</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-rose-50 text-rose-600">
+                          <CalendarX className="h-5 w-5" />
+                        </div>
+                      </div>
+
+                      <div
+                        className={`transition-all duration-200 overflow-hidden rounded-2xl border border-zinc-150 p-4.5 flex items-center justify-between shadow-sm ${
+                          attendanceFilter ? "opacity-50" : ""
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Total Time Log</span>
+                          <div className="text-xl font-extrabold text-amber-600">
+                            {adminSelectedEmpActivitiesLoading ? (
+                              <Loader2 className="h-4.5 w-4.5 animate-spin text-amber-600 inline" />
+                            ) : (
+                              adminOvertimeFormatted
+                            )}
+                          </div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
+                          <Moon className="h-5 w-5" />
+                        </div>
+                      </div>
+
+                      {/* Card Piala Tercepat Admin */}
+                      <div
+                        onClick={() => setAttendanceFilter(attendanceFilter === "earliest" ? null : "earliest")}
+                        className={`transition-all duration-200 cursor-pointer overflow-hidden rounded-2xl border p-4.5 flex items-center justify-between shadow-sm hover:shadow-md hover:scale-[1.01] hover:border-zinc-300 ${
+                          attendanceFilter === "earliest"
+                            ? "border-amber-500 ring-2 ring-amber-500/10 bg-amber-50/20"
+                            : attendanceFilter
+                            ? "opacity-50 border-zinc-150 bg-zinc-50/30"
+                            : "border-zinc-150 bg-zinc-50/30"
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Piala Tercepat</span>
+                          <div className="text-xl font-extrabold text-amber-600">{adminTotalTrophies} Piala</div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-amber-50 text-amber-500">
+                          <Trophy className="h-5 w-5 text-yellow-500 fill-yellow-400 shrink-0" />
+                        </div>
+                      </div>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-amber-50 text-amber-500">
-                      <Trophy className="h-5 w-5 text-yellow-500 fill-yellow-400 shrink-0" />
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {/* Filter Alert Message Admin */}
-              {attendanceFilter && (
-                <div className="bg-zinc-50 border border-zinc-150 rounded-xl p-2.5 px-4 flex items-center justify-between text-xs text-zinc-700 shadow-sm transition-all duration-250 mb-4">
-                  <div className="flex items-center gap-2 font-semibold">
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#FF8200] animate-pulse"></span>
-                    Menampilkan hasil filter: <span className="font-bold text-[#FF8200] capitalize">{attendanceFilter === "wh_permission" ? "Izin Jam Kerja" : attendanceFilter === "leave" ? "Izin & Cuti" : attendanceFilter === "earliest" ? "Piala Tercepat" : attendanceFilter.replace("_", " ")}</span> ({filteredAdminSelectedGrid.length} Hari)
-                  </div>
-                  <button
-                    onClick={() => setAttendanceFilter(null)}
-                    className="text-[10px] bg-zinc-200 hover:bg-zinc-300 text-zinc-700 px-2.5 py-1 rounded-lg font-bold cursor-pointer transition-all border border-zinc-300"
-                  >
-                    Clear Filter
-                  </button>
-                </div>
-              )}
+                    {/* Filter Alert Message Admin */}
+                    {attendanceFilter && (
+                      <div className="bg-zinc-50 border border-zinc-150 rounded-xl p-2.5 px-4 flex items-center justify-between text-xs text-zinc-700 shadow-sm transition-all duration-250 mb-4">
+                        <div className="flex items-center gap-2 font-semibold">
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#FF8200] animate-pulse"></span>
+                          Menampilkan hasil filter: <span className="font-bold text-[#FF8200] capitalize">{attendanceFilter === "wh_permission" ? "Izin Jam Kerja" : attendanceFilter === "leave" ? "Izin & Cuti" : attendanceFilter === "earliest" ? "Piala Tercepat" : attendanceFilter.replace("_", " ")}</span> ({filteredAdminSelectedGrid.length} Hari)
+                        </div>
+                        <button
+                          onClick={() => setAttendanceFilter(null)}
+                          className="text-[10px] bg-zinc-200 hover:bg-zinc-300 text-zinc-700 px-2.5 py-1 rounded-lg font-bold cursor-pointer transition-all border border-zinc-300"
+                        >
+                          Clear Filter
+                        </button>
+                      </div>
+                    )}
 
-              {/* Grid Bulanan Admin */}
-              <div className="border border-zinc-150 rounded-xl overflow-hidden shadow-sm">
-                <div className="overflow-x-auto max-h-[480px]">
-                  {adminSelectedEmpLoading ? (
-                    <div className="p-12 flex justify-center">
-                      <Loader2 className="h-8 w-8 animate-spin text-[#FF8200]" />
-                    </div>
-                  ) : !selectedEmployeeId ? (
-                    <div className="p-12 text-center text-zinc-400 text-xs">Silakan pilih karyawan terlebih dahulu.</div>
-                  ) : (
-                    <table className="w-full divide-y divide-zinc-150 text-left text-xs">
-                      <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider sticky top-0 backdrop-blur-sm z-10">
-                        <tr>
-                          <th className="p-3.5">Hari & Tanggal</th>
-                          <th className="p-3.5">Absen Masuk</th>
-                          <th className="p-3.5">Jam Istirahat</th>
-                          <th className="p-3.5">Absen Pulang</th>
-                          <th className="p-3.5 text-center">Status</th>
-                          <th className="p-3.5 text-center">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
-                        {filteredAdminSelectedGrid.map((day: any) => (
-                          <tr key={day.dateString} className="hover:bg-zinc-50/30">
-                            <td className="p-3.5">
-                              <div className="font-bold text-zinc-900">{day.formattedDay}</div>
-                              <div className="text-[10px] text-zinc-400 font-semibold capitalize">{day.dayName}</div>
-                            </td>
-                            <td className="p-3.5 font-mono text-zinc-800 font-bold">
-                              <div className="flex items-center gap-1">
-                                {day.checkIn}
-                                {day.isEarliest && (
-                                  <span title="Datang Tercepat!">
-                                    <Trophy className="h-3.5 w-3.5 text-yellow-500 fill-yellow-400 shrink-0" />
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-3.5 font-mono text-zinc-850 font-bold">
-                              {day.breakStart !== "-" 
-                                ? `${day.breakStart} - ${day.breakEnd !== "-" ? day.breakEnd : "..."}` 
-                                : "-"}
-                            </td>
-                            <td className="p-3.5 font-mono text-zinc-800 font-bold">{day.checkOut}</td>
-                            <td className="p-3.5 text-center">
-                              {day.status === "future" ? (
-                                <span className="text-zinc-300 font-bold">-</span>
-                              ) : day.leaveId || day.whPermissionId ? (
-                                <button
-                                  onClick={() => handleOpenDetailModal(day.leaveId, day.whPermissionId)}
-                                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${day.colorClass} cursor-pointer hover:opacity-80 hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-1`}
-                                >
-                                  {day.statusLabel}
-                                  <Info className="h-3 w-3 shrink-0 opacity-70" />
-                                </button>
-                              ) : (
-                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${day.colorClass}`}>
-                                  {day.statusLabel}
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-3.5 text-center">
-                              {day.attendanceId && isAdmin ? (
-                                <button
-                                  onClick={() => handleDeleteAttendance(day.attendanceId)}
-                                  disabled={deleteAttendanceMutation.isPending}
-                                  className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-150 px-2.5 py-1 rounded-md cursor-pointer transition-all text-[11px] font-bold disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-200"
-                                >
-                                  Reset/Hapus
-                                </button>
-                              ) : day.leaveId && isAdmin ? (
-                                <button
-                                  onClick={() => handleDeleteLeave(day.leaveId)}
-                                  disabled={deleteLeaveMutation.isPending}
-                                  className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-150 px-2.5 py-1 rounded-md cursor-pointer transition-all text-[11px] font-bold disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-200"
-                                >
-                                  Reset/Hapus
-                                </button>
-                              ) : (
-                                <span className="text-zinc-300">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Riwayat Pengajuan Perizinan & Cuti Karyawan Terpilih (All-time History) */}
-            {selectedEmployeeId && adminSelectedEmpAttendance?.employee && (
-              <div className="bg-white rounded-2xl border border-zinc-150 shadow-sm p-6 space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-[#FF8200]" />
-                      Riwayat Pengajuan Perizinan & Cuti Karyawan
-                    </h3>
-                    <p className="text-[10px] text-zinc-400 font-medium mt-1">
-                      Menampilkan semua riwayat pengajuan milik: <span className="font-bold text-zinc-700">{adminSelectedEmpAttendance.name}</span>
-                    </p>
-                  </div>
-
-                  {/* Tabs */}
-                  <div className="flex border-b border-zinc-150 shrink-0">
-                    <button
-                      onClick={() => setAdminHistoryActiveTab("leave")}
-                      className={`px-3 py-1.5 text-xs font-bold border-b-2 cursor-pointer transition-all ${
-                        adminHistoryActiveTab === "leave"
-                          ? "border-[#FF8200] text-[#FF8200]"
-                          : "border-transparent text-zinc-400 hover:text-zinc-650"
-                      }`}
-                    >
-                      Cuti & Izin Harian
-                    </button>
-                    <button
-                      onClick={() => setAdminHistoryActiveTab("work_hour")}
-                      className={`px-3 py-1.5 text-xs font-bold border-b-2 cursor-pointer transition-all ${
-                        adminHistoryActiveTab === "work_hour"
-                          ? "border-[#FF8200] text-[#FF8200]"
-                          : "border-transparent text-zinc-400 hover:text-zinc-650"
-                      }`}
-                    >
-                      Izin Jam Kerja
-                    </button>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto max-h-[350px]">
-                  {adminHistoryActiveTab === "leave" ? (
-                    !adminSelectedEmpAttendance.employee.leave_requests || adminSelectedEmpAttendance.employee.leave_requests.length === 0 ? (
-                      <p className="text-xs text-zinc-400 py-12 text-center">Belum ada riwayat pengajuan cuti/izin.</p>
-                    ) : (
-                      <table className="w-full divide-y divide-zinc-150 text-left text-xs">
-                        <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider sticky top-0 z-10">
-                          <tr>
-                            <th className="p-3">Tipe Cuti</th>
-                            <th className="p-3">Periode</th>
-                            <th className="p-3">Alasan</th>
-                            <th className="p-3 text-center">Lampiran</th>
-                            <th className="p-3 text-center">Status</th>
-                            <th className="p-3 text-center">Aksi Persetujuan</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-100 font-medium">
-                          {adminSelectedEmpAttendance.employee.leave_requests.map((item: any) => {
-                            const start = formatIndonesianDate(item.start_date);
-                            const end = formatIndonesianDate(item.end_date);
-                            const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
-                            return (
-                              <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
-                                <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
-                                <td className="p-3 text-zinc-500 font-semibold">{start} s/d {end}</td>
-                                <td className="p-3 text-zinc-650 max-w-[200px] truncate" title={item.reason}>{item.reason}</td>
-                                <td className="p-3 text-center">
-                                  {item.attachment ? (
-                                    <a
-                                      href={api.defaults.baseURL + "/../storage/" + item.attachment}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2 py-1 rounded-md"
+                    {/* Grid Bulanan Admin */}
+                    <div className="border border-zinc-150 rounded-xl overflow-hidden shadow-sm">
+                      <div className="overflow-x-auto max-h-[480px]">
+                        <table className="w-full divide-y divide-zinc-150 text-left text-sm">
+                          <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider text-xs sticky top-0 backdrop-blur-sm z-10">
+                            <tr>
+                              <th className="p-3.5">Hari & Tanggal</th>
+                              <th className="p-3.5">Absen Masuk</th>
+                              <th className="p-3.5">Jam Istirahat</th>
+                              <th className="p-3.5">Absen Pulang</th>
+                              <th className="p-3.5 text-center">Status</th>
+                              <th className="p-3.5 text-center">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
+                            {filteredAdminSelectedGrid.map((day: any) => (
+                              <tr key={day.dateString} className="hover:bg-zinc-50/30">
+                                <td className="p-3.5">
+                                  <div className="font-bold text-zinc-900">{day.formattedDay}</div>
+                                  <div className="text-xs text-zinc-400 font-semibold capitalize">{day.dayName}</div>
+                                </td>
+                                <td className="p-3.5 font-mono text-zinc-800 font-bold">
+                                  <div className="flex items-center gap-1">
+                                    {day.checkIn}
+                                    {day.isEarliest && (
+                                      <span title="Datang Tercepat!">
+                                        <Trophy className="h-3.5 w-3.5 text-yellow-500 fill-yellow-400 shrink-0" />
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="p-3.5 font-mono text-zinc-850 font-bold">
+                                  {day.breakStart !== "-" 
+                                    ? `${day.breakStart} - ${day.breakEnd !== "-" ? day.breakEnd : "..."}` 
+                                    : "-"}
+                                </td>
+                                <td className="p-3.5 font-mono text-zinc-800 font-bold">{day.checkOut}</td>
+                                <td className="p-3.5 text-center">
+                                  {day.status === "future" ? (
+                                    <span className="text-zinc-300 font-bold">-</span>
+                                  ) : day.leaveId || day.whPermissionId ? (
+                                    <button
+                                      onClick={() => handleOpenDetailModal(day.leaveId, day.whPermissionId)}
+                                      className={`text-xs font-bold px-2.5 py-1.5 rounded-full border ${day.colorClass} cursor-pointer hover:opacity-80 hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-1`}
                                     >
-                                      <FileText className="h-3 w-3" />
-                                      Lihat Lampiran
-                                    </a>
+                                      {day.statusLabel}
+                                      <Info className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                                    </button>
                                   ) : (
-                                    <span className="text-zinc-400">-</span>
+                                    <span className={`text-xs font-bold px-2.5 py-1.5 rounded-full border ${day.colorClass}`}>
+                                      {day.statusLabel}
+                                    </span>
                                   )}
                                 </td>
-                                <td className="p-3 text-center">
-                                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                                    item.status === "approved"
-                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                                      : item.status === "rejected"
-                                      ? "bg-rose-50 text-rose-700 border border-rose-100"
-                                      : item.status === "cancelled"
-                                      ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
-                                      : "bg-amber-50 text-amber-700 border border-amber-100"
-                                  }`}>
-                                    {item.status === "approved"
-                                      ? "DISETUJUI"
-                                      : item.status === "rejected"
-                                      ? "DITOLAK"
-                                      : item.status === "cancelled"
-                                      ? "DIBATALKAN"
-                                      : "DIPROSES"}
-                                  </span>
-                                </td>
-                                <td className="p-3 text-center">
-                                  {item.status === "pending" ? (
-                                    <div className="flex gap-1.5 justify-center">
-                                      <button
-                                        onClick={() => approveLeaveMutation.mutate(item.id)}
-                                        disabled={approveLeaveMutation.isPending}
-                                        className="bg-emerald-650 hover:bg-emerald-700 text-white text-[10px] font-bold px-2 py-1 rounded transition-all cursor-pointer disabled:bg-zinc-200"
-                                      >
-                                        Setujui
-                                      </button>
-                                      <button
-                                        onClick={() => handleOpenRejectModal(item.id, "leave")}
-                                        disabled={rejectLeaveMutation.isPending}
-                                        className="bg-rose-650 hover:bg-rose-700 text-white text-[10px] font-bold px-2 py-1 rounded transition-all cursor-pointer disabled:bg-zinc-200"
-                                      >
-                                        Tolak
-                                      </button>
-                                    </div>
+                                <td className="p-3.5 text-center">
+                                  {day.attendanceId && isAdmin ? (
+                                    <button
+                                      onClick={() => handleDeleteAttendance(day.attendanceId)}
+                                      disabled={deleteAttendanceMutation.isPending}
+                                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-150 px-2.5 py-1.5 rounded-md cursor-pointer transition-all text-xs font-bold disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-200"
+                                    >
+                                      Reset/Hapus
+                                    </button>
+                                  ) : day.leaveId && isAdmin ? (
+                                    <button
+                                      onClick={() => handleDeleteLeave(day.leaveId)}
+                                      disabled={deleteLeaveMutation.isPending}
+                                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-150 px-2.5 py-1.5 rounded-md cursor-pointer transition-all text-xs font-bold disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-200"
+                                    >
+                                      Reset/Hapus
+                                    </button>
                                   ) : (
-                                    <span className="text-zinc-400">-</span>
+                                    <span className="text-zinc-300">-</span>
                                   )}
                                 </td>
                               </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    )
-                  ) : (
-                    !adminSelectedEmpAttendance.employee.work_hour_permissions || adminSelectedEmpAttendance.employee.work_hour_permissions.length === 0 ? (
-                      <p className="text-xs text-zinc-400 py-12 text-center">Belum ada riwayat pengajuan izin jam kerja.</p>
-                    ) : (
-                      <table className="w-full divide-y divide-zinc-150 text-left text-xs">
-                        <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider sticky top-0 z-10">
-                          <tr>
-                            <th className="p-3">Tipe Izin</th>
-                            <th className="p-3">Tanggal & Jam</th>
-                            <th className="p-3">Alasan</th>
-                            <th className="p-3 text-center">Lampiran</th>
-                            <th className="p-3 text-center">Status</th>
-                            <th className="p-3 text-center">Aksi Persetujuan</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-100 font-medium">
-                          {adminSelectedEmpAttendance.employee.work_hour_permissions.map((item: any) => {
-                            const dateStr = formatIndonesianDate(item.date);
-                            const typeLabel = item.type === "out_temporary" ? "Izin Keluar Sementara" : item.type === "arrive_late" ? "Izin Datang Terlambat" : "Izin Pulang Lebih Awal";
-                            const timeRange = (item.type === "leave_early") 
-                              ? `Mulai ${item.start_time ? item.start_time.substring(0, 5) : "--:--"}`
-                              : `${item.start_time ? item.start_time.substring(0, 5) : "--:--"} s/d ${item.end_time ? item.end_time.substring(0, 5) : "--:--"}`;
-                            return (
-                              <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
-                                <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
-                                <td className="p-3 text-zinc-500 font-semibold">
-                                  <div className="text-zinc-700 font-bold">{dateStr}</div>
-                                  <div className="text-[10px] text-zinc-400 mt-0.5">{timeRange}</div>
-                                </td>
-                                <td className="p-3 text-zinc-650 max-w-[200px] truncate" title={item.reason}>{item.reason}</td>
-                                <td className="p-3 text-center">
-                                  {item.attachment ? (
-                                    <a
-                                      href={api.defaults.baseURL + "/../storage/" + item.attachment}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2 py-1 rounded-md"
-                                    >
-                                      <FileText className="h-3 w-3" />
-                                      Lihat Lampiran
-                                    </a>
-                                  ) : (
-                                    <span className="text-zinc-400">-</span>
-                                  )}
-                                </td>
-                                <td className="p-3 text-center">
-                                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
-                                    item.status === "approved"
-                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                                      : item.status === "rejected"
-                                      ? "bg-rose-50 text-rose-700 border border-rose-100"
-                                      : item.status === "cancelled"
-                                      ? "bg-zinc-100 text-zinc-600 border border-zinc-200"
-                                      : "bg-amber-50 text-amber-700 border border-amber-100"
-                                  }`}>
-                                    {item.status === "approved"
-                                      ? "DISETUJUI"
-                                      : item.status === "rejected"
-                                      ? "DITOLAK"
-                                      : item.status === "cancelled"
-                                      ? "DIBATALKAN"
-                                      : "DIPROSES"}
-                                  </span>
-                                </td>
-                                <td className="p-3 text-center">
-                                  {item.status === "pending" ? (
-                                    <div className="flex gap-1.5 justify-center">
-                                      <button
-                                        onClick={() => approveWorkHourPermissionMutation.mutate(item.id)}
-                                        disabled={approveWorkHourPermissionMutation.isPending}
-                                        className="bg-emerald-650 hover:bg-emerald-700 text-white text-[10px] font-bold px-2 py-1 rounded transition-all cursor-pointer disabled:bg-zinc-200"
-                                      >
-                                        Setujui
-                                      </button>
-                                      <button
-                                        onClick={() => handleOpenRejectModal(item.id, "work_hour")}
-                                        disabled={rejectWorkHourPermissionMutation.isPending}
-                                        className="bg-rose-650 hover:bg-rose-700 text-white text-[10px] font-bold px-2 py-1 rounded transition-all cursor-pointer disabled:bg-zinc-200"
-                                      >
-                                        Tolak
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-zinc-400">-</span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    )
-                  )}
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )
             )}
 
             {/* Pengaturan Area Absensi Kantor (Geofence Settings) */}

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Cookies from "js-cookie";
 import { useRouter, usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -18,6 +19,7 @@ import {
   Key,
   Loader2,
   CalendarCheck,
+  Bell,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -72,6 +74,31 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const isAdmin = roles.includes("Admin");
   const isOwner = roles.includes("Owner");
   const isEmployee = roles.includes("Employee");
+  const isOwnerOrAdmin = isOwner || isAdmin;
+
+  // Query: Fetch pending leave requests count for notification badge
+  const { data: allLeaveRequests } = useQuery({
+    queryKey: ["allLeaveRequestsList"],
+    queryFn: async () => {
+      const res = await api.get("/leave-requests");
+      return res.data.data || [];
+    },
+    enabled: !!user && isOwnerOrAdmin,
+  });
+
+  // Query: Fetch pending work hour permissions count for notification badge
+  const { data: allWorkHourPermissions } = useQuery({
+    queryKey: ["allWorkHourPermissionsList"],
+    queryFn: async () => {
+      const res = await api.get("/admin/work-hour-permissions");
+      return res.data.data || [];
+    },
+    enabled: !!user && isOwnerOrAdmin,
+  });
+
+  const pendingLeavesCount = allLeaveRequests?.filter((r: any) => r.status === "pending").length || 0;
+  const pendingWHPermissionsCount = allWorkHourPermissions?.filter((r: any) => r.status === "pending").length || 0;
+  const totalPendingNotifications = pendingLeavesCount + pendingWHPermissionsCount;
 
   const handleLogout = async () => {
     try {
@@ -282,56 +309,73 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           </div>
 
-          {/* Profil User Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className="flex items-center gap-2 text-zinc-700 hover:text-zinc-900 focus:outline-none p-1.5 rounded-lg hover:bg-zinc-100/60 transition-all cursor-pointer"
-            >
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-100 text-[#FF8200] font-bold text-xs overflow-hidden shrink-0">
-                {user?.avatar_url ? (
-                  <img src={user.avatar_url} className="h-full w-full object-cover" alt="Avatar" />
-                ) : user?.name ? (
-                  user.name.charAt(0).toUpperCase()
-                ) : (
-                  <UserIcon className="h-3.5 w-3.5" />
+          {/* Profil User Dropdown & Notification Bell */}
+          <div className="flex items-center gap-3">
+            {isOwnerOrAdmin && (
+              <a
+                href="/attendance-leave"
+                className="relative p-2 text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100/65 rounded-lg transition-all cursor-pointer flex items-center justify-center"
+                title={totalPendingNotifications > 0 ? `${totalPendingNotifications} pengajuan karyawan memerlukan persetujuan` : "Tidak ada pengajuan pending"}
+              >
+                <Bell className="h-5 w-5 text-zinc-500" />
+                {totalPendingNotifications > 0 && (
+                  <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-white font-extrabold text-[9px] leading-none">
+                    {totalPendingNotifications}
+                  </span>
                 )}
-              </div>
-              <span className="text-sm font-medium hidden sm:inline">{user?.name || "Memuat..."}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-zinc-400 hidden sm:inline" />
-            </button>
-
-            {profileDropdownOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-20"
-                  onClick={() => setProfileDropdownOpen(false)}
-                ></div>
-                <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white border border-zinc-200 py-1 shadow-lg z-30">
-                  <div className="px-4 py-2 border-b border-zinc-100">
-                    <p className="text-xs font-bold text-zinc-900 leading-none">{user?.name}</p>
-                    <span className="text-[10px] text-zinc-400 font-bold tracking-wider uppercase block mt-1">
-                      {user?.roles?.[0] || "User"}
-                    </span>
-                  </div>
-                  <a
-                    href="/profile"
-                    onClick={() => setProfileDropdownOpen(false)}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-50 text-left transition-all cursor-pointer border-b border-zinc-50"
-                  >
-                    <UserIcon className="h-3 w-3 text-zinc-400" />
-                    Lihat Profil
-                  </a>
-                  <button
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 text-left transition-all cursor-pointer"
-                  >
-                    <LogOut className="h-3 w-3" />
-                    Keluar Aplikasi
-                  </button>
-                </div>
-              </>
+              </a>
             )}
+
+            <div className="relative">
+              <button
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                className="flex items-center gap-2 text-zinc-700 hover:text-zinc-900 focus:outline-none p-1.5 rounded-lg hover:bg-zinc-100/60 transition-all cursor-pointer"
+              >
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-100 text-[#FF8200] font-bold text-xs overflow-hidden shrink-0">
+                  {user?.avatar_url ? (
+                    <img src={user.avatar_url} className="h-full w-full object-cover" alt="Avatar" />
+                  ) : user?.name ? (
+                    user.name.charAt(0).toUpperCase()
+                  ) : (
+                    <UserIcon className="h-3.5 w-3.5" />
+                  )}
+                </div>
+                <span className="text-sm font-medium hidden sm:inline">{user?.name || "Memuat..."}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-zinc-400 hidden sm:inline" />
+              </button>
+
+              {profileDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setProfileDropdownOpen(false)}
+                  ></div>
+                  <div className="absolute right-0 mt-2 w-48 rounded-lg bg-white border border-zinc-200 py-1 shadow-lg z-30">
+                    <div className="px-4 py-2 border-b border-zinc-100">
+                      <p className="text-xs font-bold text-zinc-900 leading-none">{user?.name}</p>
+                      <span className="text-[10px] text-zinc-400 font-bold tracking-wider uppercase block mt-1">
+                        {user?.roles?.[0] || "User"}
+                      </span>
+                    </div>
+                    <a
+                      href="/profile"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-xs font-bold text-zinc-700 hover:bg-zinc-50 text-left transition-all cursor-pointer border-b border-zinc-50"
+                    >
+                      <UserIcon className="h-3 w-3 text-zinc-400" />
+                      Lihat Profil
+                    </a>
+                    <button
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 text-left transition-all cursor-pointer"
+                    >
+                      <LogOut className="h-3 w-3" />
+                      Keluar Aplikasi
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 

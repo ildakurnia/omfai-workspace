@@ -28,6 +28,7 @@ import {
   RefreshCw,
   Timer,
   Coffee,
+  Check,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import ReviewModal from "@/components/review-modal";
@@ -190,6 +191,14 @@ export default function DashboardPage() {
   const [reviewActivity, setReviewActivity] = useState<any>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [activePhotoUrl, setActivePhotoUrl] = useState<string | null>(null);
+
+  // States untuk Persetujuan Pengajuan Karyawan
+  const [activeRequestTab, setActiveRequestTab] = useState<"leave" | "wh_permission">("leave");
+  const [isRejectionModalOpen, setIsRejectionModalOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectionId, setRejectionId] = useState<number | null>(null);
+  const [rejectionType, setRejectionType] = useState<"leave" | "wh_permission" | null>(null);
+  const [rejectionError, setRejectionError] = useState<string | null>(null);
 
   // Query: Ambil riwayat absen login karyawan
   const { data: attendanceHistory, isLoading: attendanceLoading } = useQuery({
@@ -418,6 +427,124 @@ export default function DashboardPage() {
     enabled: !!isOwnerOrAdmin,
   });
 
+  // Query: Fetch ALL leave requests for Owner/Admin approval
+  const { data: allLeaveRequests, isLoading: allLeavesLoading } = useQuery({
+    queryKey: ["allLeaveRequestsList"],
+    queryFn: async () => {
+      const res = await api.get("/leave-requests");
+      return res.data.data || [];
+    },
+    enabled: !!isOwnerOrAdmin,
+  });
+
+  // Query: Fetch ALL work hour permissions for Owner/Admin approval
+  const { data: allWorkHourPermissions, isLoading: allWorkHourPermissionsLoading } = useQuery({
+    queryKey: ["allWorkHourPermissionsList"],
+    queryFn: async () => {
+      const res = await api.get("/admin/work-hour-permissions");
+      return res.data.data || [];
+    },
+    enabled: !!isOwnerOrAdmin,
+  });
+
+  // Mutation: Approve Leave Request
+  const approveLeaveMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await api.post(`/leave-requests/${id}/approve`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["allLeaveRequestsList"] });
+      showAlert("Pengajuan cuti disetujui.", "success", "Persetujuan Berhasil");
+    },
+    onError: (err: any) => {
+      showAlert(err.response?.data?.message || "Gagal menyetujui pengajuan.", "error", "Persetujuan Gagal");
+    },
+  });
+
+  // Mutation: Reject Leave Request
+  const rejectLeaveMutation = useMutation({
+    mutationFn: async (payload: { id: number; reason: string }) => {
+      const res = await api.post(`/leave-requests/${payload.id}/reject`, {
+        rejection_reason: payload.reason,
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      setIsRejectionModalOpen(false);
+      setRejectionReason("");
+      setRejectionId(null);
+      setRejectionType(null);
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["allLeaveRequestsList"] });
+      showAlert("Pengajuan cuti ditolak.", "success", "Penolakan Berhasil");
+    },
+    onError: (err: any) => {
+      setRejectionError(err.response?.data?.message || "Gagal menolak pengajuan.");
+    },
+  });
+
+  // Mutation: Approve Work Hour Permission
+  const approveWorkHourPermissionMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await api.post(`/admin/work-hour-permissions/${id}/approve`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["allWorkHourPermissionsList"] });
+      showAlert("Pengajuan izin jam kerja disetujui.", "success", "Persetujuan Berhasil");
+    },
+    onError: (err: any) => {
+      showAlert(err.response?.data?.message || "Gagal menyetujui pengajuan.", "error", "Persetujuan Gagal");
+    },
+  });
+
+  // Mutation: Reject Work Hour Permission
+  const rejectWorkHourPermissionMutation = useMutation({
+    mutationFn: async (payload: { id: number; reason: string }) => {
+      const res = await api.post(`/admin/work-hour-permissions/${payload.id}/reject`, {
+        rejection_reason: payload.reason,
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      setIsRejectionModalOpen(false);
+      setRejectionReason("");
+      setRejectionId(null);
+      setRejectionType(null);
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["allWorkHourPermissionsList"] });
+      showAlert("Pengajuan izin jam kerja ditolak.", "success", "Penolakan Berhasil");
+    },
+    onError: (err: any) => {
+      setRejectionError(err.response?.data?.message || "Gagal menolak pengajuan.");
+    },
+  });
+
+  const handleOpenRejectModal = (id: number, type: "leave" | "wh_permission") => {
+    setRejectionId(id);
+    setRejectionType(type);
+    setRejectionReason("");
+    setRejectionError(null);
+    setIsRejectionModalOpen(true);
+  };
+
+  const handleConfirmReject = () => {
+    if (!rejectionReason || rejectionReason.trim().length < 3) {
+      setRejectionError("Alasan penolakan harus diisi minimal 3 karakter.");
+      return;
+    }
+    if (rejectionId && rejectionType) {
+      if (rejectionType === "leave") {
+        rejectLeaveMutation.mutate({ id: rejectionId, reason: rejectionReason });
+      } else {
+        rejectWorkHourPermissionMutation.mutate({ id: rejectionId, reason: rejectionReason });
+      }
+    }
+  };
+
   // Query Data Aktivitas Saya Bulan Ini (khusus Employee untuk total lembur)
   const { data: currentMonthActivities } = useQuery({
     queryKey: ["currentMonthOvertimeActivities"],
@@ -477,6 +604,10 @@ export default function DashboardPage() {
 
   // RENDERING TAMPILAN OWNER / ADMIN
   if (isOwnerOrAdmin) {
+    const pendingLeaves = allLeaveRequests?.filter((r: any) => r.status === "pending") || [];
+    const pendingWorkHourPermissions = allWorkHourPermissions?.filter((r: any) => r.status === "pending") || [];
+    const totalPendingRequests = pendingLeaves.length + pendingWorkHourPermissions.length;
+
     const data = dashboardData || {
       totalEmployees: 0,
       totalActivities: 0,
@@ -514,16 +645,425 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* Persetujuan Pengajuan Karyawan (Hanya tampil jika ada request pending) */}
+        {!allLeavesLoading && !allWorkHourPermissionsLoading && totalPendingRequests > 0 && (
+          <div className="bg-white rounded-2xl border border-zinc-150 p-6 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h3 className="text-base font-bold text-zinc-955 flex items-center gap-2">
+                  <CheckCircle className="h-4.5 w-4.5 text-[#FF8200]" />
+                  Persetujuan Pengajuan Karyawan (Pending)
+                  <span className="inline-flex items-center justify-center bg-orange-100 text-[#FF8200] text-xs font-bold px-2.5 py-0.5 rounded-full">
+                    {totalPendingRequests}
+                  </span>
+                </h3>
+                <p className="text-xs text-zinc-400 font-semibold mt-0.5">
+                  Daftar pengajuan cuti/izin dan izin jam kerja karyawan yang memerlukan persetujuan.
+                </p>
+              </div>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex gap-4 border-b border-zinc-100 pb-2">
+              <button
+                onClick={() => setActiveRequestTab("leave")}
+                className={`pb-2 text-sm font-bold transition-all relative border-b-2 px-1.5 cursor-pointer ${
+                  activeRequestTab === "leave"
+                    ? "border-[#FF8200] text-[#FF8200]"
+                    : "border-transparent text-zinc-400 hover:text-zinc-650"
+                }`}
+              >
+                Cuti & Izin Kerja ({pendingLeaves.length})
+              </button>
+              <button
+                onClick={() => setActiveRequestTab("wh_permission")}
+                className={`pb-2 text-sm font-bold transition-all relative border-b-2 px-1.5 cursor-pointer ${
+                  activeRequestTab === "wh_permission"
+                    ? "border-[#FF8200] text-[#FF8200]"
+                    : "border-transparent text-zinc-400 hover:text-zinc-650"
+                }`}
+              >
+                Izin Jam Kerja ({pendingWorkHourPermissions.length})
+              </button>
+            </div>
+
+            {/* Content List */}
+            <div>
+              {activeRequestTab === "leave" ? (
+                pendingLeaves.length === 0 ? (
+                  <div className="text-center py-6 text-zinc-400 text-xs">
+                    Tidak ada pengajuan cuti/izin pending di tab ini.
+                  </div>
+                ) : (
+                  <>
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto border border-zinc-150 rounded-xl shadow-sm">
+                      <table className="w-full divide-y divide-zinc-150 text-left text-sm">
+                        <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider text-xs">
+                          <tr>
+                            <th className="p-3.5 pl-5">Nama Karyawan</th>
+                            <th className="p-3.5">Tipe Pengajuan</th>
+                            <th className="p-3.5">Periode Tanggal</th>
+                            <th className="p-3.5">Alasan</th>
+                            <th className="p-3.5 text-center">Lampiran</th>
+                            <th className="p-3.5 text-center">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
+                          {pendingLeaves.map((item: any) => {
+                            const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
+                            return (
+                              <tr key={item.id} className="hover:bg-zinc-50/30">
+                                <td className="p-3.5 pl-5 flex items-center gap-3">
+                                  <div className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 font-bold text-xs overflow-hidden relative">
+                                    {item.employee?.user?.avatar ? (
+                                      <img src={api.defaults.baseURL + "/../storage/" + item.employee.user.avatar} className="h-full w-full object-cover" alt={item.employee?.name} />
+                                    ) : (
+                                      item.employee?.name ? item.employee.name.charAt(0).toUpperCase() : "E"
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-zinc-900">{item.employee?.name}</div>
+                                    <div className="text-xs text-zinc-400 font-mono font-bold mt-0.5">{item.employee?.employee_code}</div>
+                                  </div>
+                                </td>
+                                <td className="p-3.5">
+                                  <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full border ${
+                                    item.type === "annual_leave" 
+                                      ? "bg-blue-50 text-blue-700 border-blue-100" 
+                                      : item.type === "sick_leave" 
+                                      ? "bg-rose-50 text-rose-700 border-rose-100" 
+                                      : "bg-amber-50 text-amber-700 border-amber-100"
+                                  }`}>
+                                    {typeLabel}
+                                  </span>
+                                </td>
+                                <td className="p-3.5 text-zinc-500 font-semibold">
+                                  {formatIndonesianDate(item.start_date)} s/d {formatIndonesianDate(item.end_date)}
+                                </td>
+                                <td className="p-3.5 text-zinc-650 max-w-[200px] break-words whitespace-pre-wrap">
+                                  {item.reason}
+                                </td>
+                                <td className="p-3.5 text-center">
+                                  {item.attachment ? (
+                                    <a
+                                      href={api.defaults.baseURL + "/../storage/" + item.attachment}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2.5 py-1 rounded-md"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <FileText className="h-3.5 w-3.5" />
+                                      Lihat Lampiran
+                                    </a>
+                                  ) : (
+                                    <span className="text-zinc-400">-</span>
+                                  )}
+                                </td>
+                                <td className="p-3.5 text-center">
+                                  <div className="flex justify-center gap-2">
+                                    <button
+                                      onClick={() => approveLeaveMutation.mutate(item.id)}
+                                      disabled={approveLeaveMutation.isPending}
+                                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 px-3 py-2 rounded-lg flex items-center gap-1 text-xs font-bold cursor-pointer transition-all disabled:opacity-50"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                      Setujui
+                                    </button>
+                                    <button
+                                      onClick={() => handleOpenRejectModal(item.id, "leave")}
+                                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-2 rounded-lg flex items-center gap-1 text-xs font-bold cursor-pointer transition-all"
+                                    >
+                                      <Ban className="h-3 w-3" />
+                                      Tolak
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile Card List View */}
+                    <div className="grid grid-cols-1 gap-4 md:hidden">
+                      {pendingLeaves.map((item: any) => {
+                        const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
+                        return (
+                          <div key={item.id} className="p-4 bg-zinc-50 border border-zinc-150 rounded-xl space-y-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 font-bold text-xs overflow-hidden relative">
+                                {item.employee?.user?.avatar ? (
+                                  <img src={api.defaults.baseURL + "/../storage/" + item.employee.user.avatar} className="h-full w-full object-cover" alt={item.employee?.name} />
+                                ) : (
+                                  item.employee?.name ? item.employee.name.charAt(0).toUpperCase() : "E"
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-bold text-zinc-900 text-sm">{item.employee?.name}</div>
+                                <div className="text-xs text-zinc-400 font-mono font-bold">{item.employee?.employee_code}</div>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs border-t border-b border-zinc-100 py-2.5">
+                              <div>
+                                <span className="text-xs text-zinc-400 block font-bold uppercase tracking-wider">Tipe</span>
+                                <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded border mt-0.5 ${
+                                  item.type === "annual_leave" 
+                                    ? "bg-blue-50 text-blue-700 border-blue-100" 
+                                    : item.type === "sick_leave" 
+                                    ? "bg-rose-50 text-rose-700 border-rose-100" 
+                                    : "bg-amber-50 text-amber-700 border-amber-100"
+                                }`}>
+                                  {typeLabel}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-xs text-zinc-400 block font-bold uppercase tracking-wider">Periode</span>
+                                <span className="font-semibold text-zinc-700 block mt-0.5 text-sm">
+                                  {formatIndonesianDate(item.start_date)} s/d {formatIndonesianDate(item.end_date)}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-xs">
+                              <span className="text-xs text-zinc-400 block font-bold uppercase tracking-wider">Alasan</span>
+                              <p className="text-zinc-700 mt-1 font-semibold break-words whitespace-pre-wrap text-sm">{item.reason}</p>
+                            </div>
+                            {item.attachment && (
+                              <div className="pt-1">
+                                <a
+                                  href={api.defaults.baseURL + "/../storage/" + item.attachment}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex w-full justify-center items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2.5 py-2 rounded-lg"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                  Lihat Lampiran
+                                </a>
+                              </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-3 pt-2">
+                              <button
+                                onClick={() => approveLeaveMutation.mutate(item.id)}
+                                disabled={approveLeaveMutation.isPending}
+                                className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 py-2.5 rounded-lg flex items-center justify-center gap-1 text-xs font-bold cursor-pointer transition-all disabled:opacity-50"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                Setujui
+                              </button>
+                              <button
+                                onClick={() => handleOpenRejectModal(item.id, "leave")}
+                                className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 py-2.5 rounded-lg flex items-center justify-center gap-1 text-xs font-bold cursor-pointer transition-all"
+                              >
+                                <Ban className="h-3.5 w-3.5" />
+                                Tolak
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )
+              ) : (
+                pendingWorkHourPermissions.length === 0 ? (
+                  <div className="text-center py-6 text-zinc-400 text-xs">
+                    Tidak ada pengajuan izin jam kerja pending di tab ini.
+                  </div>
+                ) : (
+                  <>
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto border border-zinc-150 rounded-xl shadow-sm">
+                      <table className="w-full divide-y divide-zinc-150 text-left text-sm">
+                        <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider text-xs">
+                          <tr>
+                            <th className="p-3.5 pl-5">Nama Karyawan</th>
+                            <th className="p-3.5">Tipe Izin</th>
+                            <th className="p-3.5">Tanggal & Jam</th>
+                            <th className="p-3.5">Alasan</th>
+                            <th className="p-3.5 text-center">Lampiran</th>
+                            <th className="p-3.5 text-center">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
+                          {pendingWorkHourPermissions.map((item: any) => {
+                            const typeLabel = item.type === "out_temporary" ? "Keluar Sementara" : item.type === "arrive_late" ? "Datang Terlambat" : "Pulang Cepat";
+                            const timeRange = (item.type === "leave_early") 
+                              ? `Mulai ${item.start_time ? item.start_time.substring(0, 5) : "--:--"}`
+                              : `${item.start_time ? item.start_time.substring(0, 5) : "--:--"} s/d ${item.end_time ? item.end_time.substring(0, 5) : "--:--"}`;
+                            return (
+                              <tr key={item.id} className="hover:bg-zinc-50/30">
+                                <td className="p-3.5 pl-5 flex items-center gap-3">
+                                  <div className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 font-bold text-xs overflow-hidden relative">
+                                    {item.employee?.user?.avatar ? (
+                                      <img src={api.defaults.baseURL + "/../storage/" + item.employee.user.avatar} className="h-full w-full object-cover" alt={item.employee?.name} />
+                                    ) : (
+                                      item.employee?.name ? item.employee.name.charAt(0).toUpperCase() : "E"
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-zinc-900">{item.employee?.name}</div>
+                                    <div className="text-xs text-zinc-400 font-mono font-bold mt-0.5">{item.employee?.employee_code}</div>
+                                  </div>
+                                </td>
+                                <td className="p-3.5">
+                                  <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full border ${
+                                    item.type === "arrive_late" 
+                                      ? "bg-amber-50 text-amber-700 border-amber-100" 
+                                      : item.type === "leave_early" 
+                                      ? "bg-violet-50 text-violet-700 border-violet-100" 
+                                      : "bg-purple-50 text-purple-700 border-purple-100"
+                                  }`}>
+                                    {typeLabel}
+                                  </span>
+                                </td>
+                                <td className="p-3.5 text-zinc-500 font-semibold">
+                                  <div className="text-zinc-700 font-bold text-sm">{formatIndonesianDate(item.date)}</div>
+                                  <div className="text-xs text-zinc-400 mt-0.5">{timeRange}</div>
+                                </td>
+                                <td className="p-3.5 text-zinc-650 max-w-[200px] break-words whitespace-pre-wrap">
+                                  {item.reason}
+                                </td>
+                                <td className="p-3.5 text-center">
+                                  {item.attachment ? (
+                                    <a
+                                      href={api.defaults.baseURL + "/../storage/" + item.attachment}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2.5 py-1 rounded-md"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <FileText className="h-3.5 w-3.5" />
+                                      Lihat Lampiran
+                                    </a>
+                                  ) : (
+                                    <span className="text-zinc-400">-</span>
+                                  )}
+                                </td>
+                                <td className="p-3.5 text-center">
+                                  <div className="flex justify-center gap-2">
+                                    <button
+                                      onClick={() => approveWorkHourPermissionMutation.mutate(item.id)}
+                                      disabled={approveWorkHourPermissionMutation.isPending}
+                                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 px-3 py-2 rounded-lg flex items-center gap-1 text-xs font-bold cursor-pointer transition-all disabled:opacity-50"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                      Setujui
+                                    </button>
+                                    <button
+                                      onClick={() => handleOpenRejectModal(item.id, "wh_permission")}
+                                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 px-3 py-2 rounded-lg flex items-center gap-1 text-xs font-bold cursor-pointer transition-all"
+                                    >
+                                      <Ban className="h-3 w-3" />
+                                      Tolak
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile Card List View */}
+                    <div className="grid grid-cols-1 gap-4 md:hidden">
+                      {pendingWorkHourPermissions.map((item: any) => {
+                        const typeLabel = item.type === "out_temporary" ? "Keluar Sementara" : item.type === "arrive_late" ? "Datang Terlambat" : "Pulang Cepat";
+                        const timeRange = (item.type === "leave_early") 
+                          ? `Mulai ${item.start_time ? item.start_time.substring(0, 5) : "--:--"}`
+                          : `${item.start_time ? item.start_time.substring(0, 5) : "--:--"} s/d ${item.end_time ? item.end_time.substring(0, 5) : "--:--"}`;
+                        return (
+                          <div key={item.id} className="p-4 bg-zinc-50 border border-zinc-150 rounded-xl space-y-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 font-bold text-xs overflow-hidden relative">
+                                {item.employee?.user?.avatar ? (
+                                  <img src={api.defaults.baseURL + "/../storage/" + item.employee.user.avatar} className="h-full w-full object-cover" alt={item.employee?.name} />
+                                ) : (
+                                  item.employee?.name ? item.employee.name.charAt(0).toUpperCase() : "E"
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-bold text-zinc-900 text-sm">{item.employee?.name}</div>
+                                <div className="text-xs text-zinc-400 font-mono font-bold">{item.employee?.employee_code}</div>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs border-t border-b border-zinc-100 py-2.5">
+                              <div>
+                                <span className="text-xs text-zinc-400 block font-bold uppercase tracking-wider">Tipe Izin</span>
+                                <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded border mt-0.5 ${
+                                  item.type === "arrive_late" 
+                                    ? "bg-amber-50 text-amber-700 border-amber-100" 
+                                    : item.type === "leave_early" 
+                                    ? "bg-violet-50 text-violet-700 border-violet-100" 
+                                    : "bg-purple-50 text-purple-700 border-purple-100"
+                                }`}>
+                                  {typeLabel}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-xs text-zinc-400 block font-bold uppercase tracking-wider">Tanggal & Jam</span>
+                                <div className="mt-0.5">
+                                  <span className="font-semibold text-zinc-700 block text-sm">{formatIndonesianDate(item.date)}</span>
+                                  <span className="text-xs text-zinc-400 block font-mono font-bold mt-0.5">{timeRange}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-xs">
+                              <span className="text-xs text-zinc-400 block font-bold uppercase tracking-wider">Alasan</span>
+                              <p className="text-zinc-700 mt-1 font-semibold break-words whitespace-pre-wrap text-sm">{item.reason}</p>
+                            </div>
+                            {item.attachment && (
+                              <div className="pt-1">
+                                <a
+                                  href={api.defaults.baseURL + "/../storage/" + item.attachment}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex w-full justify-center items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-bold border border-blue-100 bg-blue-50 px-2.5 py-2 rounded-lg"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                  Lihat Lampiran
+                                </a>
+                              </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-3 pt-2">
+                              <button
+                                onClick={() => approveWorkHourPermissionMutation.mutate(item.id)}
+                                disabled={approveWorkHourPermissionMutation.isPending}
+                                className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100 py-2.5 rounded-lg flex items-center justify-center gap-1 text-xs font-bold cursor-pointer transition-all disabled:opacity-50"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                Setujui
+                              </button>
+                              <button
+                                onClick={() => handleOpenRejectModal(item.id, "wh_permission")}
+                                className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-100 py-2.5 rounded-lg flex items-center justify-center gap-1 text-xs font-bold cursor-pointer transition-all"
+                              >
+                                <Ban className="h-3.5 w-3.5" />
+                                Tolak
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Widget Kehadiran Hari Ini */}
         {!isDashboardLoading && data.attendanceSummary && (
           <div className="bg-white rounded-2xl border border-zinc-150 p-6 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
-                <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
+                <h3 className="text-base font-bold text-zinc-950 flex items-center gap-2">
                   <Calendar className="h-4.5 w-4.5 text-[#FF8200]" />
                   Monitoring Kehadiran Hari Ini
                 </h3>
-                <p className="text-[11px] text-zinc-400 font-semibold mt-0.5">
+                <p className="text-xs text-zinc-400 font-semibold mt-0.5">
                   Daftar kehadiran dan perizinan karyawan tanggal {formatIndonesianDate(new Date().toISOString().slice(0, 10))}.
                 </p>
               </div>
@@ -541,13 +1081,13 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 border-b border-zinc-100 pb-4">
               <button
                 onClick={() => setActiveAttendanceTab("present")}
-                className={`px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
                   activeAttendanceTab === "present"
                     ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
                     : "bg-emerald-50/50 text-emerald-800 border-emerald-100 hover:bg-emerald-50"
                 }`}
               >
-                <span className={`text-[10px] uppercase tracking-wider font-bold ${
+                <span className={`text-xs uppercase tracking-wider font-bold ${
                   activeAttendanceTab === "present" ? "text-white" : "text-emerald-600"
                 }`}>Tepat Waktu</span>
                 <span className="text-3xl font-extrabold mt-1">
@@ -557,14 +1097,14 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => setActiveAttendanceTab("late")}
-                className={`px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
                   activeAttendanceTab === "late"
                     ? "bg-amber-600 text-white border-amber-600 shadow-sm"
                     : "bg-amber-50/50 text-amber-850 border-amber-100 hover:bg-amber-50"
                 }`}
               >
-                <span className={`text-[10px] uppercase tracking-wider font-bold ${
-                  activeAttendanceTab === "late" ? "text-white" : "text-amber-700"
+                <span className={`text-xs uppercase tracking-wider font-bold ${
+                  activeAttendanceTab === "late" ? "text-white" : "text-amber-750"
                 }`}>Terlambat</span>
                 <span className="text-3xl font-extrabold mt-1">
                   {data.attendanceSummary.lateCount}
@@ -573,13 +1113,13 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => setActiveAttendanceTab("leave")}
-                className={`px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
                   activeAttendanceTab === "leave"
                     ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                     : "bg-blue-50/50 text-blue-800 border-blue-100 hover:bg-blue-50"
                 }`}
               >
-                <span className={`text-[10px] uppercase tracking-wider font-bold ${
+                <span className={`text-xs uppercase tracking-wider font-bold ${
                   activeAttendanceTab === "leave" ? "text-white" : "text-blue-650"
                 }`}>Cuti / Izin</span>
                 <span className="text-3xl font-extrabold mt-1">
@@ -589,13 +1129,13 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => setActiveAttendanceTab("wh_permission")}
-                className={`px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
                   activeAttendanceTab === "wh_permission"
                     ? "bg-purple-600 text-white border-purple-600 shadow-sm"
                     : "bg-purple-50/50 text-purple-850 border-purple-100 hover:bg-purple-50"
                 }`}
               >
-                <span className={`text-[10px] uppercase tracking-wider font-bold ${
+                <span className={`text-xs uppercase tracking-wider font-bold ${
                   activeAttendanceTab === "wh_permission" ? "text-white" : "text-purple-700"
                 }`}>Izin Jam Kerja</span>
                 <span className="text-3xl font-extrabold mt-1">
@@ -605,13 +1145,13 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => setActiveAttendanceTab("absent")}
-                className={`px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
                   activeAttendanceTab === "absent"
                     ? "bg-rose-600 text-white border-rose-600 shadow-sm"
                     : "bg-rose-50/50 text-rose-800 border-rose-100 hover:bg-rose-50"
                 }`}
               >
-                <span className={`text-[10px] uppercase tracking-wider font-bold ${
+                <span className={`text-xs uppercase tracking-wider font-bold ${
                   activeAttendanceTab === "absent" ? "text-white" : "text-rose-700"
                 }`}>Belum Absen</span>
                 <span className="text-3xl font-extrabold mt-1">
@@ -622,8 +1162,8 @@ export default function DashboardPage() {
 
             {/* List Karyawan */}
             <div className="overflow-x-auto border border-zinc-150 rounded-xl shadow-sm">
-              <table className="w-full divide-y divide-zinc-150 text-left text-xs">
-                <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider">
+              <table className="w-full divide-y divide-zinc-150 text-left text-sm">
+                <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider text-xs">
                   <tr>
                     <th className="p-3.5 pl-5">Nama Karyawan</th>
                     <th className="p-3.5">Absen Masuk</th>
@@ -653,13 +1193,13 @@ export default function DashboardPage() {
                               <div className="font-bold text-zinc-900 flex items-center gap-1.5">
                                 {item.name}
                                 {item.is_earliest && (
-                                  <span className="inline-flex items-center gap-1 bg-yellow-50 text-yellow-800 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded-md font-extrabold shadow-sm animate-pulse">
+                                  <span className="inline-flex items-center gap-1 bg-yellow-50 text-yellow-800 border border-yellow-200 text-xs px-2 py-0.5 rounded-md font-extrabold shadow-sm animate-pulse">
                                     <Trophy className="h-3 w-3 text-yellow-600 fill-yellow-500 shrink-0" />
                                     Datang Tercepat!
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[10px] text-zinc-400 font-mono font-bold mt-0.5">{item.employee_code}</div>
+                              <div className="text-xs text-zinc-400 font-mono font-bold mt-0.5">{item.employee_code}</div>
                             </div>
                           </td>
                           <td className="p-3.5 font-mono text-zinc-800 font-bold">
@@ -680,7 +1220,7 @@ export default function DashboardPage() {
                           <td className="p-3.5 font-mono text-zinc-800 font-bold">{item.check_out}</td>
                           <td className="p-3.5 text-center">
                             <span
-                              className={`inline-block text-[10px] font-extrabold px-2.5 py-1 rounded-full border uppercase tracking-wider ${
+                              className={`inline-block text-xs font-extrabold px-2.5 py-1 rounded-full border uppercase tracking-wider ${
                                 item.status === "present"
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                                   : item.status === "late"
@@ -694,8 +1234,6 @@ export default function DashboardPage() {
                             >
                               {item.status === "late"
                                 ? `TERLAMBAT (${formatLateMinutes(item.late_minutes)})`
-                                : item.status === "leave"
-                                ? `${item.status_label}: ${item.leave_type || "Cuti"}`
                                 : item.status_label}
                             </span>
                           </td>
@@ -717,6 +1255,8 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+
 
         {/* 1. Summary Cards */}
         {isDashboardLoading ? (
@@ -999,6 +1539,68 @@ export default function DashboardPage() {
           message={alertConfig.message}
           variant={alertConfig.variant}
         />
+
+        {/* Modal Alasan Penolakan Pengajuan */}
+        {isRejectionModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm px-4">
+            <div className="bg-white rounded-2xl border border-zinc-100 shadow-2xl w-full max-w-sm p-6 overflow-hidden">
+              <div className="flex items-center justify-between border-b border-zinc-100 pb-3 mb-5">
+                <h3 className="text-sm font-bold text-zinc-955">Masukkan Alasan Penolakan</h3>
+                <button
+                  onClick={() => setIsRejectionModalOpen(false)}
+                  className="p-1 text-zinc-400 hover:text-zinc-700 rounded-lg cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {rejectionError && (
+                <div className="rounded-lg bg-red-50 p-3 text-xs font-semibold text-red-600 border border-red-100 mb-4">
+                  {rejectionError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                    Alasan Penolakan
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-950 focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-[#FF8200]"
+                    placeholder="Masukkan alasan mengapa pengajuan ditolak..."
+                  />
+                </div>
+
+                <div className="pt-4 flex gap-3 border-t border-zinc-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsRejectionModalOpen(false)}
+                    className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold py-2.5 rounded-lg transition-all cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleConfirmReject}
+                    disabled={rejectLeaveMutation.isPending || rejectWorkHourPermissionMutation.isPending}
+                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2.5 rounded-lg transition-all cursor-pointer flex justify-center items-center disabled:opacity-50"
+                  >
+                    {rejectLeaveMutation.isPending || rejectWorkHourPermissionMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Memproses...
+                      </>
+                    ) : (
+                      "Tolak Pengajuan"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </DashboardLayout>
     );
   }

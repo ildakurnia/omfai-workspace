@@ -26,7 +26,7 @@ class LeaveApprovalController extends Controller
             ], 403);
         }
 
-        $query = LeaveRequest::with('employee')
+        $query = LeaveRequest::with('employee.user')
             ->orderBy('created_at', 'desc');
 
         if ($request->has('status')) {
