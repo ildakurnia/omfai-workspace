@@ -35,6 +35,12 @@ class AuthService
             ]);
         }
 
+        if (!$user->is_active) {
+            throw ValidationException::withMessages([
+                'email' => ['Akun Anda telah dinonaktifkan. Silakan hubungi admin.'],
+            ]);
+        }
+
         // Generate Sanctum token
         $token = $user->createToken('auth_token')->plainTextToken;
 

@@ -34,6 +34,7 @@ class UpdateUserRequest extends FormRequest
             'joined_at' => 'required_if:role,Employee|nullable|date',
             'whatsapp_number' => 'required_if:role,Employee|nullable|string',
             'leave_balance' => 'required_if:role,Employee|nullable|numeric|min:0',
+            'is_active' => 'sometimes|boolean',
         ];
     }
 }

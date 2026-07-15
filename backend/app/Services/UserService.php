@@ -30,6 +30,7 @@ class UserService
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
+            'is_active' => $data['is_active'] ?? true,
         ]);
 
         $user->assignRole($data['role']);
@@ -62,6 +63,10 @@ class UserService
 
         if (!empty($data['password'])) {
             $updateData['password'] = Hash::make($data['password']);
+        }
+
+        if (isset($data['is_active'])) {
+            $updateData['is_active'] = (bool)$data['is_active'];
         }
 
         $user->update($updateData);

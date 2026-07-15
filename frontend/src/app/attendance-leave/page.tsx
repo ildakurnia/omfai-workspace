@@ -1938,7 +1938,7 @@ export default function AttendanceLeavePage() {
                   >
                     {employees && employees.map((emp: any) => (
                       <option key={emp.id} value={emp.id}>
-                        {emp.name} ({emp.employee.employee_code})
+                        {emp.name} ({emp.employee.employee_code}){emp.is_active === false && " - (Nonaktif)"}
                       </option>
                     ))}
                   </select>

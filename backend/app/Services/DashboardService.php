@@ -98,7 +98,9 @@ class DashboardService
         // 6. Hitung statistik & detail kehadiran hari ini
         $today = Carbon::now('Asia/Jakarta')->toDateString();
 
-        $employees = Employee::with([
+        $employees = Employee::whereHas('user', function ($q) {
+            $q->where('is_active', true);
+        })->with([
             'user',
             'attendances' => function ($q) use ($today) {
                 $q->where('date', $today);

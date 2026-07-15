@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Users, Plus, X, Edit2, Trash2, Loader2, Key } from "lucide-react";
+import { Users, Plus, X, Edit2, Trash2, Loader2, Key, Power } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import api from "@/lib/api";
 import { formatIndonesianDate } from "@/lib/utils";
@@ -19,6 +19,7 @@ const userSchema = z.object({
   joined_at: z.string().optional(),
   whatsapp_number: z.string().optional(),
   leave_balance: z.any().optional(),
+  is_active: z.any().optional(),
 }).refine((data) => {
   if (data.role === "Employee") {
     return !!data.joined_at && data.joined_at.trim() !== "";
@@ -51,12 +52,16 @@ export default function UsersPage() {
     title: string;
     message: string;
     variant: "danger" | "warning" | "info";
+    confirmText?: string;
+    cancelText?: string;
     onConfirm: () => void;
   }>({
     isOpen: false,
     title: "",
     message: "",
     variant: "danger",
+    confirmText: "Ya",
+    cancelText: "Batal",
     onConfirm: () => {},
   });
 
@@ -64,16 +69,19 @@ export default function UsersPage() {
     message: string,
     onConfirm: () => void,
     variant: "danger" | "warning" | "info" = "danger",
-    title: string = "Konfirmasi"
+    title: string = "Konfirmasi",
+    confirmText: string = "Ya",
+    cancelText: string = "Batal"
   ) => {
     setConfirmConfig({
       isOpen: true,
       title,
       message,
       variant,
+      confirmText,
+      cancelText,
       onConfirm: () => {
         onConfirm();
-        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
       },
     });
   };
@@ -122,6 +130,7 @@ export default function UsersPage() {
 
       const sanitizedData = {
         ...data,
+        is_active: data.is_active === "true" || data.is_active === true,
         leave_balance: data.leave_balance === "" || data.leave_balance === undefined || data.leave_balance === null
           ? undefined
           : Number(data.leave_balance)
@@ -155,7 +164,28 @@ export default function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ["allUsers"] });
       queryClient.invalidateQueries({ queryKey: ["employeesList"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
     },
+    onError: () => {
+      setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+    }
+  });
+
+  // Mutation: Toggle Status Aktif/Nonaktif User
+  const toggleStatusMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await api.patch(`/users/${id}/toggle`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["allUsers"] });
+      queryClient.invalidateQueries({ queryKey: ["employeesList"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+    },
+    onError: (err: any) => {
+      setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+      alert(err.message || err.response?.data?.message || "Gagal memperbarui status karyawan.");
+    }
   });
 
   const openAddModal = () => {
@@ -167,7 +197,8 @@ export default function UsersPage() {
       role: "Employee",
       joined_at: "",
       whatsapp_number: "",
-      leave_balance: 12
+      leave_balance: 12,
+      is_active: true
     });
     setIsModalOpen(true);
     setErrorMsg(null);
@@ -183,6 +214,7 @@ export default function UsersPage() {
       joined_at: userData.employee?.joined_at || "",
       whatsapp_number: userData.employee?.whatsapp_number || "",
       leave_balance: userData.employee?.leave_balance ?? 12,
+      is_active: userData.is_active ?? true,
     });
     setIsModalOpen(true);
     setErrorMsg(null);
@@ -205,7 +237,28 @@ export default function UsersPage() {
         deleteMutation.mutate(id);
       },
       "danger",
-      "Hapus Akun Karyawan"
+      "Hapus Akun Karyawan",
+      "Ya, Hapus",
+      "Batal"
+    );
+  };
+
+  const handleToggleStatus = (user: any) => {
+    const actionText = user.is_active ? "menonaktifkan" : "mengaktifkan";
+    const confirmTitle = user.is_active ? "Nonaktifkan Karyawan" : "Aktifkan Karyawan";
+    const message = user.is_active
+      ? `Apakah Anda yakin ingin menonaktifkan ${user.name}? Karyawan ini tidak akan bisa login ke sistem, tetapi data riwayat aktivitas mereka akan tetap tersimpan.`
+      : `Apakah Anda yakin ingin mengaktifkan kembali ${user.name}? Karyawan ini akan dapat kembali login ke sistem.`;
+    
+    showConfirm(
+      message,
+      () => {
+        toggleStatusMutation.mutate(user.id);
+      },
+      user.is_active ? "warning" : "info",
+      confirmTitle,
+      user.is_active ? "Ya, Nonaktifkan" : "Ya, Aktifkan",
+      "Batal"
     );
   };
 
@@ -247,6 +300,7 @@ export default function UsersPage() {
                   <th className="p-4">Alamat Email</th>
                   <th className="p-4">WhatsApp</th>
                   <th className="p-4">Role / Hak Akses</th>
+                  <th className="p-4 text-center">Status</th>
                   <th className="p-4">Tanggal Masuk</th>
                   <th className="p-4 text-center">Sisa Cuti</th>
                   <th className="p-4 text-center">Aksi</th>
@@ -274,6 +328,17 @@ export default function UsersPage() {
                         {item.roles?.[0]?.name || "Employee"}
                       </span>
                     </td>
+                    <td className="p-4 text-center">
+                      <span
+                        className={`text-[9px] font-bold px-2.5 py-1 rounded-full uppercase ${
+                          item.is_active !== false
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                            : "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                        }`}
+                      >
+                        {item.is_active !== false ? "Aktif" : "Nonaktif"}
+                      </span>
+                    </td>
                     <td className="p-4 text-zinc-400">
                       {item.employee?.joined_at 
                         ? formatIndonesianDate(item.employee.joined_at) 
@@ -284,6 +349,17 @@ export default function UsersPage() {
                     </td>
                     <td className="p-4 text-center">
                       <div className="flex justify-center gap-2">
+                        <button
+                          onClick={() => handleToggleStatus(item)}
+                          className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                            item.is_active !== false
+                              ? "text-zinc-400 hover:text-red-650 hover:bg-red-50"
+                              : "text-[#FF8200] hover:text-[#e07200] hover:bg-orange-50"
+                          }`}
+                          title={item.is_active !== false ? "Nonaktifkan Akun" : "Aktifkan Akun"}
+                        >
+                          <Power className="h-3.5 w-3.5" />
+                        </button>
                         <button
                           onClick={() => openEditModal(item)}
                           className="p-1.5 text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100 rounded-md transition-all cursor-pointer"
@@ -392,6 +468,22 @@ export default function UsersPage() {
                     <option value="Owner">Owner (Pemilik Perusahaan)</option>
                   </select>
                 </div>
+
+                {/* Status Dropdown (Tampil Hanya Saat Edit Karyawan) */}
+                {selectedUser && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 mb-1">
+                      Status Akun
+                    </label>
+                    <select
+                      {...register("is_active")}
+                      className="w-full rounded-lg border px-3 py-2.5 text-xs text-zinc-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent border-zinc-200"
+                    >
+                      <option value="true">Aktif</option>
+                      <option value="false">Nonaktif (Blokir Akses)</option>
+                    </select>
+                  </div>
+                )}
 
                 {/* Employee ID (Tampil Hanya Saat Edit & Jika Role = Employee) */}
                 {selectedRole === "Employee" && selectedUser && (
@@ -505,9 +597,9 @@ export default function UsersPage() {
         title={confirmConfig.title}
         message={confirmConfig.message}
         variant={confirmConfig.variant}
-        confirmText="Ya, Hapus"
-        cancelText="Batal"
-        isLoading={deleteMutation.isPending}
+        confirmText={confirmConfig.confirmText || "Ya"}
+        cancelText={confirmConfig.cancelText || "Batal"}
+        isLoading={deleteMutation.isPending || toggleStatusMutation.isPending}
       />
     </DashboardLayout>
   );

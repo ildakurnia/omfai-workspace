@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login']);
 
 // Protected routes (Harus login & kirim token Bearer)
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'check.active'])->group(function () {
     // Auth endpoints
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
@@ -31,6 +31,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:Admin')->group(function () {
         Route::post('/users', [UserController::class, 'store']);
         Route::put('/users/{user}', [UserController::class, 'update']);
+        Route::patch('/users/{user}/toggle', [UserController::class, 'toggleStatus']);
         Route::delete('/users/{user}', [UserController::class, 'destroy']);
         Route::post('/admin/clear-cache', [DashboardController::class, 'clearCache']);
     });

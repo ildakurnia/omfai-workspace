@@ -113,6 +113,22 @@ class UserController extends Controller
     }
 
     /**
+     * Toggle status aktif/nonaktif user (Admin only).
+     */
+    public function toggleStatus(User $user): JsonResponse
+    {
+        $user->is_active = !$user->is_active;
+        $user->save();
+
+        $action = $user->is_active ? 'diaktifkan' : 'dinonaktifkan';
+
+        return response()->json([
+            'message' => "Pengguna berhasil {$action}.",
+            'data' => $user->load(['roles', 'employee']),
+        ]);
+    }
+
+    /**
      * Hapus user (Admin only).
      */
     public function destroy(User $user): JsonResponse

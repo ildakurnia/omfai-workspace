@@ -585,7 +585,7 @@ export default function ActivitiesPage() {
                 <option value="">Semua Karyawan</option>
                 {employeesData?.filter((e: any) => e.roles?.[0]?.name === "Employee").map((emp: any) => (
                   <option key={emp.id} value={emp.id}>
-                    {emp.name}
+                    {emp.name} {emp.is_active === false && "(Nonaktif)"}
                   </option>
                 ))}
               </select>
