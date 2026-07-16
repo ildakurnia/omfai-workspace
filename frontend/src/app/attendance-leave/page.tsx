@@ -36,7 +36,7 @@ import ConfirmModal from "@/components/confirm-modal";
 
 // Leave submission validation schema
 const leaveSchema = z.object({
-  type: z.enum(["annual_leave", "sick_leave", "permission"]),
+  type: z.enum(["annual_leave", "sick_leave", "permission", "wfh"]),
   start_date: z.string().min(1, "Tanggal mulai wajib diisi"),
   end_date: z.string().min(1, "Tanggal selesai wajib diisi"),
   reason: z.string().min(1, "Alasan wajib diisi"),
@@ -1003,6 +1003,10 @@ export default function AttendanceLeavePage() {
           status = "late";
           statusLabel = "Terlambat";
           colorClass = "text-amber-700 bg-amber-50 border-amber-100";
+        } else if (attendance.status === "wfh") {
+          status = "wfh";
+          statusLabel = "WFH";
+          colorClass = "text-teal-700 bg-teal-50 border-teal-100";
         }
 
         // Apply work hour permission labels if matched
@@ -1033,10 +1037,14 @@ export default function AttendanceLeavePage() {
         }
       } else if (leave) {
         status = leave.type;
-        const baseLabel = leave.type === "annual_leave" ? "Cuti" : leave.type === "sick_leave" ? "Sakit" : "Izin";
+        const baseLabel = leave.type === "annual_leave" ? "Cuti" : leave.type === "sick_leave" ? "Sakit" : leave.type === "wfh" ? "WFH" : "Izin";
         if (leave.status === "approved") {
           statusLabel = baseLabel;
-          colorClass = leave.type === "sick_leave" ? "text-red-750 bg-red-50 border-red-100" : "text-blue-700 bg-blue-50 border-blue-100";
+          colorClass = leave.type === "sick_leave" 
+            ? "text-red-750 bg-red-50 border-red-100" 
+            : leave.type === "wfh"
+            ? "text-teal-700 bg-teal-50 border-teal-100"
+            : "text-blue-700 bg-blue-50 border-blue-100";
         } else {
           statusLabel = `${baseLabel} (Diproses)`;
           colorClass = "text-amber-750 bg-amber-50 border-amber-200";
@@ -1115,8 +1123,10 @@ export default function AttendanceLeavePage() {
     d.status === "present" || 
     d.status === "leave_early" || 
     d.status === "out_temporary" || 
+    d.status === "wfh" ||
     d.statusLabel.startsWith("Hadir") || 
-    d.statusLabel.startsWith("Pulang Cepat")
+    d.statusLabel.startsWith("Pulang Cepat") ||
+    d.statusLabel.startsWith("WFH")
   ).length;
 
   const totalLate = employeeGrid.filter((d: any) => 
@@ -1144,8 +1154,10 @@ export default function AttendanceLeavePage() {
     d.status === "present" || 
     d.status === "leave_early" || 
     d.status === "out_temporary" || 
+    d.status === "wfh" ||
     d.statusLabel.startsWith("Hadir") || 
-    d.statusLabel.startsWith("Pulang Cepat")
+    d.statusLabel.startsWith("Pulang Cepat") ||
+    d.statusLabel.startsWith("WFH")
   ).length;
 
   const adminTotalLate = adminSelectedGrid.filter((d: any) => 
@@ -1173,8 +1185,10 @@ export default function AttendanceLeavePage() {
             d.status === "present" || 
             d.status === "leave_early" || 
             d.status === "out_temporary" || 
+            d.status === "wfh" ||
             d.statusLabel.startsWith("Hadir") || 
-            d.statusLabel.startsWith("Pulang Cepat")
+            d.statusLabel.startsWith("Pulang Cepat") ||
+            d.statusLabel.startsWith("WFH")
           );
         case "late":
           return (
@@ -1655,7 +1669,7 @@ export default function AttendanceLeavePage() {
                       </thead>
                       <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
                         {filteredEmployeeGrid.map((day: any) => {
-                          const showLeaveButton = day.checkIn === "-" && !day.isPast && !["annual_leave", "sick_leave", "permission", "weekend", "holiday"].includes(day.status);
+                          const showLeaveButton = day.checkIn === "-" && !day.isPast && !["annual_leave", "sick_leave", "permission", "weekend", "holiday", "wfh"].includes(day.status);
                           
                           return (
                             <tr key={day.dateString} className="hover:bg-zinc-50/30">
@@ -1702,7 +1716,7 @@ export default function AttendanceLeavePage() {
                                     onClick={() => handleOpenLeaveModalWithDate(day.dateString)}
                                     className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-md cursor-pointer transition-all text-[11px] font-bold"
                                   >
-                                    Ajukan Cuti
+                                    Ajukan Cuti/WFH
                                   </button>
                                 ) : (
                                   <span className="text-zinc-300">-</span>
@@ -1751,7 +1765,7 @@ export default function AttendanceLeavePage() {
                       {allLeaveRequests
                         .filter((r: any) => r.status === "pending")
                         .map((item: any) => {
-                          const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
+                          const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : item.type === "wfh" ? "WFH" : "Izin";
                           return (
                             <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
                               <td className="p-3.5">
@@ -1764,6 +1778,8 @@ export default function AttendanceLeavePage() {
                                     ? "bg-blue-50 text-blue-700 border-blue-100" 
                                     : item.type === "sick_leave" 
                                     ? "bg-rose-50 text-rose-700 border-rose-100" 
+                                    : item.type === "wfh"
+                                    ? "bg-teal-50 text-teal-700 border-teal-100"
                                     : "bg-amber-50 text-amber-700 border-amber-100"
                                 }`}>
                                   {typeLabel}
@@ -2056,7 +2072,7 @@ export default function AttendanceLeavePage() {
                               {adminSelectedEmpAttendance.employee.leave_requests.map((item: any) => {
                                 const start = formatIndonesianDate(item.start_date);
                                 const end = formatIndonesianDate(item.end_date);
-                                const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
+                                const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : item.type === "wfh" ? "WFH" : "Izin";
                                 return (
                                   <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
                                     <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
@@ -2747,6 +2763,7 @@ export default function AttendanceLeavePage() {
                       <option value="annual_leave">Cuti Tahunan</option>
                       <option value="sick_leave">Cuti Sakit (Wajib Surat Dokter)</option>
                       <option value="permission">Izin</option>
+                      <option value="wfh">Work From Home (WFH)</option>
                     </select>
                   </div>
 
@@ -3086,7 +3103,7 @@ export default function AttendanceLeavePage() {
                         {leaveHistory.data.map((item: any) => {
                           const start = formatIndonesianDate(item.start_date);
                           const end = formatIndonesianDate(item.end_date);
-                          const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
+                          const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : item.type === "wfh" ? "WFH" : "Izin";
                           return (
                             <tr key={item.id} className="text-zinc-700 hover:bg-zinc-50/50">
                               <td className="p-3 text-zinc-900 font-bold">{typeLabel}</td>
@@ -3250,7 +3267,7 @@ export default function AttendanceLeavePage() {
                   <span className="font-semibold text-zinc-400">Tipe Pengajuan</span>
                   <span className="col-span-2 font-bold text-zinc-900">
                     {selectedDetailRequest.type === "leave"
-                      ? selectedDetailRequest.data.type === "annual_leave" ? "Cuti Tahunan" : selectedDetailRequest.data.type === "sick_leave" ? "Sakit" : "Izin"
+                      ? selectedDetailRequest.data.type === "annual_leave" ? "Cuti Tahunan" : selectedDetailRequest.data.type === "sick_leave" ? "Sakit" : selectedDetailRequest.data.type === "wfh" ? "WFH" : "Izin"
                       : selectedDetailRequest.data.type === "arrive_late" ? "Izin Datang Terlambat" : selectedDetailRequest.data.type === "leave_early" ? "Izin Pulang Lebih Awal" : "Izin Keluar Sementara"
                     }
                   </span>

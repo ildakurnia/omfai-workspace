@@ -154,7 +154,7 @@ class DashboardService
                     if ($attendance->check_in) {
                         $checkInCarbon = Carbon::parse($today . ' ' . $attendance->check_in);
                         $shiftStartCarbon = Carbon::parse($today . ' 08:00:00');
-                        $diff = $shiftStartCarbon->diffInMinutes($checkInCarbon, false);
+                        $diff = (int) $shiftStartCarbon->diffInMinutes($checkInCarbon, false);
                         $lateMinutes = max(0, $diff);
                     }
                 }
@@ -187,6 +187,10 @@ class DashboardService
                     $status = 'late';
                     $statusLabel = 'Terlambat';
                     $lateCount++;
+                } else if ($attendance->status === 'wfh') {
+                    $status = 'wfh';
+                    $statusLabel = 'WFH';
+                    $onTimeCount++;
                 }
             } else if ($leave) {
                 $status = 'leave';
@@ -237,8 +241,8 @@ class DashboardService
             if ($a['is_earliest'] && !$b['is_earliest']) return -1;
             if (!$a['is_earliest'] && $b['is_earliest']) return 1;
 
-            $aIsPresent = in_array($a['status'], ['present', 'late']);
-            $bIsPresent = in_array($b['status'], ['present', 'late']);
+            $aIsPresent = in_array($a['status'], ['present', 'late', 'wfh']);
+            $bIsPresent = in_array($b['status'], ['present', 'late', 'wfh']);
 
             if ($aIsPresent && !$bIsPresent) return -1;
             if (!$aIsPresent && $bIsPresent) return 1;

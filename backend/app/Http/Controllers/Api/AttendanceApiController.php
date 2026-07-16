@@ -126,8 +126,8 @@ class AttendanceApiController extends Controller
                 ], 403);
             }
 
-            // Determine check-in status: late if after 08:00
-            $status = ($currentTime > $shiftStart) ? 'late' : 'present';
+            // Determine check-in status: late if starting from 08:01:00
+            $status = ($currentTime >= '08:01:00') ? 'late' : 'present';
 
             $attendance = Attendance::create([
                 'employee_id' => $employee->id,

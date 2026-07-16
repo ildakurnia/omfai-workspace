@@ -142,7 +142,7 @@ export default function DashboardPage() {
   };
 
   const formatLateMinutes = (minutes: number) => {
-    const rounded = Math.round(minutes);
+    const rounded = Math.floor(minutes);
     if (rounded < 60) {
       return `${rounded} Menit`;
     }
@@ -1176,6 +1176,7 @@ export default function DashboardPage() {
                   {data.attendanceSummary.details
                     .filter((item: any) => {
                       if (activeAttendanceTab === "all") return true;
+                      if (activeAttendanceTab === "present") return item.status === "present" || item.status === "wfh";
                       return item.status === activeAttendanceTab;
                     })
                     .map((item: any) => {
@@ -1225,6 +1226,8 @@ export default function DashboardPage() {
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                                   : item.status === "late"
                                   ? "bg-amber-50 text-amber-700 border-amber-100"
+                                  : item.status === "wfh"
+                                  ? "bg-teal-50 text-teal-700 border-teal-100"
                                   : item.status === "leave"
                                   ? "bg-blue-50 text-blue-700 border-blue-100"
                                   : item.status === "wh_permission"
@@ -1687,10 +1690,18 @@ export default function DashboardPage() {
                 {todayAttendance?.check_in ? todayAttendance.check_in.substring(0, 5) : "--:--"}
               </p>
               {todayAttendance?.status && (
-                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                  todayAttendance.status === "present" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-amber-50 text-amber-700 border border-amber-100"
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase ${
+                  todayAttendance.status === "present"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                    : todayAttendance.status === "wfh"
+                    ? "bg-teal-50 text-teal-700 border-teal-100"
+                    : "bg-amber-50 text-amber-700 border-amber-100"
                 }`}>
-                  {todayAttendance.status === "present" ? "Tepat Waktu" : "Terlambat"}
+                  {todayAttendance.status === "present"
+                    ? "Tepat Waktu"
+                    : todayAttendance.status === "wfh"
+                    ? "WFH"
+                    : "Terlambat"}
                 </span>
               )}
             </div>

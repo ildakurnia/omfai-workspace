@@ -93,6 +93,35 @@ class LeaveApprovalController extends Controller
             'status' => 'approved'
         ]);
 
+        // If it's WFH, automatically generate attendance for workdays (excluding Sunday and Holidays)
+        if ($leaveRequest->type === 'wfh') {
+            $holidayDates = \App\Models\Holiday::pluck('date')
+                ->map(fn($date) => Carbon::parse($date)->format('Y-m-d'))
+                ->toArray();
+
+            $curr = $startDate->copy();
+            while ($curr->lte($endDate)) {
+                $dateStr = $curr->format('Y-m-d');
+                $isSunday = $curr->isSunday();
+                $isHoliday = in_array($dateStr, $holidayDates);
+
+                if (!$isSunday && !$isHoliday) {
+                    \App\Models\Attendance::updateOrCreate(
+                        [
+                            'employee_id' => $employee->id,
+                            'date' => $dateStr,
+                        ],
+                        [
+                            'check_in' => '08:00:00',
+                            'check_out' => '17:00:00',
+                            'status' => 'wfh'
+                        ]
+                    );
+                }
+                $curr->addDay();
+            }
+        }
+
         // Send WhatsApp notification to the employee (Sender name: Omfai)
         if (!empty($employee->whatsapp_number)) {
             $typeLabel = str_replace('_', ' ', ucfirst($leaveRequest->type));
@@ -230,6 +259,17 @@ class LeaveApprovalController extends Controller
             $requestedDays = $leaveRequest->duration_days;
             
             $employee->increment('leave_balance', $requestedDays);
+        }
+
+        // If it is approved WFH, delete the auto-generated WFH attendances
+        if ($leaveRequest->status === 'approved' && $leaveRequest->type === 'wfh') {
+            $startDate = Carbon::parse($leaveRequest->start_date)->format('Y-m-d');
+            $endDate = Carbon::parse($leaveRequest->end_date)->format('Y-m-d');
+
+            \App\Models\Attendance::where('employee_id', $leaveRequest->employee_id)
+                ->whereBetween('date', [$startDate, $endDate])
+                ->where('status', 'wfh')
+                ->delete();
         }
 
         $leaveRequest->delete();
