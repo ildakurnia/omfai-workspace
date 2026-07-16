@@ -345,6 +345,14 @@ export default function AttendanceLeavePage() {
 
   // Fetch selected employee's activities for overtime calculation (Admin/Owner view)
   const selectedUserId = adminSelectedEmpAttendance?.id;
+  const hasPendingLeave = React.useMemo(() => {
+    return adminSelectedEmpAttendance?.employee?.leave_requests?.some((item: any) => item.status === "pending") ?? false;
+  }, [adminSelectedEmpAttendance]);
+
+  const hasPendingWorkHour = React.useMemo(() => {
+    return adminSelectedEmpAttendance?.employee?.work_hour_permissions?.some((item: any) => item.status === "pending") ?? false;
+  }, [adminSelectedEmpAttendance]);
+
   const { data: adminSelectedEmpActivities, isLoading: adminSelectedEmpActivitiesLoading } = useQuery({
     queryKey: ["adminSelectedEmpActivities", selectedUserId, selectedMonth],
     queryFn: async () => {
@@ -2065,7 +2073,7 @@ export default function AttendanceLeavePage() {
                                 <th className="p-3">Alasan</th>
                                 <th className="p-3 text-center">Lampiran</th>
                                 <th className="p-3 text-center">Status</th>
-                                <th className="p-3 text-center">Aksi Persetujuan</th>
+                                {hasPendingLeave && <th className="p-3 text-center">Aksi Persetujuan</th>}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-100 font-medium">
@@ -2112,28 +2120,30 @@ export default function AttendanceLeavePage() {
                                           : "DIPROSES"}
                                       </span>
                                     </td>
-                                    <td className="p-3 text-center">
-                                      {item.status === "pending" ? (
-                                        <div className="flex gap-1.5 justify-center">
-                                          <button
-                                            onClick={() => approveLeaveMutation.mutate(item.id)}
-                                            disabled={approveLeaveMutation.isPending}
-                                            className="bg-emerald-650 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
-                                          >
-                                            Setujui
-                                          </button>
-                                          <button
-                                            onClick={() => handleOpenRejectModal(item.id, "leave")}
-                                            disabled={rejectLeaveMutation.isPending}
-                                            className="bg-rose-650 hover:bg-rose-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
-                                          >
-                                            Tolak
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <span className="text-zinc-400">-</span>
-                                      )}
-                                    </td>
+                                    {hasPendingLeave && (
+                                      <td className="p-3 text-center">
+                                        {item.status === "pending" ? (
+                                          <div className="flex gap-1.5 justify-center">
+                                            <button
+                                              onClick={() => approveLeaveMutation.mutate(item.id)}
+                                              disabled={approveLeaveMutation.isPending}
+                                              className="bg-emerald-650 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                            >
+                                              Setujui
+                                            </button>
+                                            <button
+                                              onClick={() => handleOpenRejectModal(item.id, "leave")}
+                                              disabled={rejectLeaveMutation.isPending}
+                                              className="bg-rose-650 hover:bg-rose-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                            >
+                                              Tolak
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          ""
+                                        )}
+                                      </td>
+                                    )}
                                   </tr>
                                 );
                               })}
@@ -2152,7 +2162,7 @@ export default function AttendanceLeavePage() {
                                 <th className="p-3">Alasan</th>
                                 <th className="p-3 text-center">Lampiran</th>
                                 <th className="p-3 text-center">Status</th>
-                                <th className="p-3 text-center">Aksi Persetujuan</th>
+                                {hasPendingWorkHour && <th className="p-3 text-center">Aksi Persetujuan</th>}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-100 font-medium">
@@ -2204,28 +2214,30 @@ export default function AttendanceLeavePage() {
                                           : "DIPROSES"}
                                       </span>
                                     </td>
-                                    <td className="p-3 text-center">
-                                      {item.status === "pending" ? (
-                                        <div className="flex gap-1.5 justify-center">
-                                          <button
-                                            onClick={() => approveWorkHourPermissionMutation.mutate(item.id)}
-                                            disabled={approveWorkHourPermissionMutation.isPending}
-                                            className="bg-emerald-650 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
-                                          >
-                                            Setujui
-                                          </button>
-                                          <button
-                                            onClick={() => handleOpenRejectModal(item.id, "work_hour")}
-                                            disabled={rejectWorkHourPermissionMutation.isPending}
-                                            className="bg-rose-650 hover:bg-rose-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
-                                          >
-                                            Tolak
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <span className="text-zinc-400">-</span>
-                                      )}
-                                    </td>
+                                    {hasPendingWorkHour && (
+                                      <td className="p-3 text-center">
+                                        {item.status === "pending" ? (
+                                          <div className="flex gap-1.5 justify-center">
+                                            <button
+                                              onClick={() => approveWorkHourPermissionMutation.mutate(item.id)}
+                                              disabled={approveWorkHourPermissionMutation.isPending}
+                                              className="bg-emerald-650 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                            >
+                                              Setujui
+                                            </button>
+                                            <button
+                                              onClick={() => handleOpenRejectModal(item.id, "work_hour")}
+                                              disabled={rejectWorkHourPermissionMutation.isPending}
+                                              className="bg-rose-650 hover:bg-rose-700 text-white text-xs font-bold px-2.5 py-1.5 rounded transition-all cursor-pointer disabled:bg-zinc-200"
+                                            >
+                                              Tolak
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          ""
+                                        )}
+                                      </td>
+                                    )}
                                   </tr>
                                 );
                               })}
