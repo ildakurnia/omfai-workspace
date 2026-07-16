@@ -711,7 +711,7 @@ export default function DashboardPage() {
                         </thead>
                         <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
                           {pendingLeaves.map((item: any) => {
-                            const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
+                            const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : item.type === "wfh" ? "WFH" : "Izin";
                             return (
                               <tr key={item.id} className="hover:bg-zinc-50/30">
                                 <td className="p-3.5 pl-5 flex items-center gap-3">
@@ -733,6 +733,8 @@ export default function DashboardPage() {
                                       ? "bg-blue-50 text-blue-700 border-blue-100" 
                                       : item.type === "sick_leave" 
                                       ? "bg-rose-50 text-rose-700 border-rose-100" 
+                                      : item.type === "wfh"
+                                      ? "bg-teal-50 text-teal-700 border-teal-100"
                                       : "bg-amber-50 text-amber-700 border-amber-100"
                                   }`}>
                                     {typeLabel}
@@ -789,7 +791,7 @@ export default function DashboardPage() {
                     {/* Mobile Card List View */}
                     <div className="grid grid-cols-1 gap-4 md:hidden">
                       {pendingLeaves.map((item: any) => {
-                        const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : "Izin";
+                        const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : item.type === "wfh" ? "WFH" : "Izin";
                         return (
                           <div key={item.id} className="p-4 bg-zinc-50 border border-zinc-150 rounded-xl space-y-3.5">
                             <div className="flex items-center gap-3">
@@ -813,6 +815,8 @@ export default function DashboardPage() {
                                     ? "bg-blue-50 text-blue-700 border-blue-100" 
                                     : item.type === "sick_leave" 
                                     ? "bg-rose-50 text-rose-700 border-rose-100" 
+                                    : item.type === "wfh"
+                                    ? "bg-teal-50 text-teal-700 border-teal-100"
                                     : "bg-amber-50 text-amber-700 border-amber-100"
                                 }`}>
                                   {typeLabel}
