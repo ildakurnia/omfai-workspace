@@ -111,7 +111,7 @@ class DashboardService
                   ->whereDate('end_date', '>=', $today);
             },
             'workHourPermissions' => function ($q) use ($today) {
-                $q->where('status', 'approved')
+                $q->whereIn('status', ['approved', 'pending'])
                   ->whereDate('date', $today);
             }
         ])->get();
@@ -160,53 +160,70 @@ class DashboardService
                 }
             }
 
+            $workHourPermissionData = null;
             if ($whPermission) {
-                $status = 'wh_permission';
-                $whPermissionCount++;
-                if ($whPermission->type === 'arrive_late') {
-                    $statusLabel = 'Izin Terlambat';
-                } else if ($whPermission->type === 'leave_early') {
-                    $statusLabel = 'Izin Pulang Cepat';
-                } else {
-                    $statusLabel = 'Izin Keluar Sementara';
-                }
-            } else if ($attendance) {
-                if ($attendance->status === 'present') {
-                    $status = 'present';
-                    $statusLabel = 'Hadir Tepat Waktu';
-                    $onTimeCount++;
+                $workHourPermissionData = [
+                    'id' => $whPermission->id,
+                    'type' => $whPermission->type,
+                    'status' => $whPermission->status,
+                    'start_time' => $whPermission->start_time ? substr($whPermission->start_time, 0, 5) : null,
+                    'end_time' => $whPermission->end_time ? substr($whPermission->end_time, 0, 5) : null,
+                    'actual_start_time' => $whPermission->actual_start_time ? substr($whPermission->actual_start_time, 0, 5) : null,
+                    'actual_end_time' => $whPermission->actual_end_time ? substr($whPermission->actual_end_time, 0, 5) : null,
+                ];
 
-                    // Lacak check-in tercepat (Early Bird) yang on-time
-                    if ($attendance->check_in) {
-                        if (is_null($earliestCheckIn) || $attendance->check_in < $earliestCheckIn) {
-                            $earliestCheckIn = $attendance->check_in;
-                            $earliestEmployeeId = $emp->id;
-                        }
+                if ($whPermission->status === 'approved') {
+                    $status = 'wh_permission';
+                    $whPermissionCount++;
+                    if ($whPermission->type === 'arrive_late') {
+                        $statusLabel = 'Izin Terlambat';
+                    } else if ($whPermission->type === 'leave_early') {
+                        $statusLabel = 'Izin Pulang Cepat';
+                    } else {
+                        $statusLabel = 'Izin Keluar Sementara';
                     }
-                } else if ($attendance->status === 'late') {
-                    $status = 'late';
-                    $statusLabel = 'Terlambat';
-                    $lateCount++;
-                } else if ($attendance->status === 'wfh') {
-                    $status = 'wfh';
-                    $statusLabel = 'WFH';
-                    $onTimeCount++;
                 }
-            } else if ($leave) {
-                $status = 'leave';
-                $leaveCount++;
-                if ($leave->type === 'annual_leave') {
-                    $statusLabel = 'Cuti Tahunan';
-                    $leaveType = 'Cuti Tahunan';
-                } else if ($leave->type === 'sick_leave') {
-                    $statusLabel = 'Sakit';
-                    $leaveType = 'Sakit';
+            }
+
+            if ($status !== 'wh_permission') {
+                if ($attendance) {
+                    if ($attendance->status === 'present') {
+                        $status = 'present';
+                        $statusLabel = 'Hadir Tepat Waktu';
+                        $onTimeCount++;
+
+                        // Lacak check-in tercepat (Early Bird) yang on-time
+                        if ($attendance->check_in) {
+                            if (is_null($earliestCheckIn) || $attendance->check_in < $earliestCheckIn) {
+                                $earliestCheckIn = $attendance->check_in;
+                                $earliestEmployeeId = $emp->id;
+                            }
+                        }
+                    } else if ($attendance->status === 'late') {
+                        $status = 'late';
+                        $statusLabel = 'Terlambat';
+                        $lateCount++;
+                    } else if ($attendance->status === 'wfh') {
+                        $status = 'wfh';
+                        $statusLabel = 'WFH';
+                        $onTimeCount++;
+                    }
+                } else if ($leave) {
+                    $status = 'leave';
+                    $leaveCount++;
+                    if ($leave->type === 'annual_leave') {
+                        $statusLabel = 'Cuti Tahunan';
+                        $leaveType = 'Cuti Tahunan';
+                    } else if ($leave->type === 'sick_leave') {
+                        $statusLabel = 'Sakit';
+                        $leaveType = 'Sakit';
+                    } else {
+                        $statusLabel = 'Izin Umum';
+                        $leaveType = 'Izin Umum';
+                    }
                 } else {
-                    $statusLabel = 'Izin Umum';
-                    $leaveType = 'Izin Umum';
+                    $absentCount++;
                 }
-            } else {
-                $absentCount++;
             }
 
             $todayAttendanceDetails[] = [
@@ -224,6 +241,7 @@ class DashboardService
                 'late_minutes' => $lateMinutes,
                 'leave_type' => $leaveType,
                 'is_earliest' => false,
+                'work_hour_permission' => $workHourPermissionData,
             ];
         }
 

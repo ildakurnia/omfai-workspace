@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Cookies from "js-cookie";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -412,6 +412,67 @@ export default function DashboardPage() {
   }, [attendanceHistory, leaveHistory, attendanceLoading, leaveLoading, isEmployee, todayStr]);
 
   const todayAttendance = cachedState.attendance;
+
+  const todayOutTemporaryPermission = useMemo(() => {
+    if (!workHourPermissions?.data) return null;
+    return workHourPermissions.data.find(
+      (p: any) => p.date === todayStr && p.type === 'out_temporary' && (p.status === 'approved' || p.status === 'pending')
+    );
+  }, [workHourPermissions, todayStr]);
+
+  const temporaryExitMutation = useMutation({
+    mutationFn: async (coords: { latitude: number; longitude: number }) => {
+      const res = await api.post("/keluar-sementara", coords);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      setGpsError(null);
+      queryClient.invalidateQueries({ queryKey: ["workHourPermissionsHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["attendanceHistory"] });
+      showAlert(data.message, "success", "Pencatatan Berhasil");
+    },
+    onError: (err: any) => {
+      setGpsError(err.response?.data?.message || "Gagal mencatat jam keluar sementara.");
+      showAlert(err.response?.data?.message || "Gagal mencatat jam keluar sementara.", "error", "Gagal");
+    },
+  });
+
+  const handleGPSTemporaryExit = () => {
+    setGpsLoading(true);
+    setGpsError(null);
+
+    if (!navigator.geolocation) {
+      setGpsError("Geolocation tidak didukung oleh browser Anda.");
+      setGpsLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (!position.coords.latitude || !position.coords.longitude) {
+          setGpsError("Gagal mendapatkan koordinat GPS yang valid dari perangkat Anda. Pastikan GPS aktif.");
+          setGpsLoading(false);
+          return;
+        }
+        const coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        temporaryExitMutation.mutate(coords, {
+          onSettled: () => setGpsLoading(false),
+        });
+      },
+      (error) => {
+        let msg = "Gagal mendapatkan lokasi Anda.";
+        if (error.code === 1) msg = "Izin akses lokasi ditolak oleh browser Anda.";
+        else if (error.code === 2) msg = "Lokasi tidak dapat ditentukan.";
+        else if (error.code === 3) msg = "Waktu pencarian lokasi habis.";
+        setGpsError(msg);
+        setGpsLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
   // Query Data Dashboard (khusus Owner & Admin)
   const {
@@ -1816,6 +1877,78 @@ export default function DashboardPage() {
                   </>
                 )}
               </button>
+            )}
+
+            {/* Tombol Keluar Sementara jika sudah Clock In dan belum Clock Out, dan memiliki izin aktif hari ini */}
+            {todayAttendance?.check_in && !todayAttendance?.check_out && todayOutTemporaryPermission && (
+              <div className="flex flex-col gap-2 mt-1">
+                <button
+                  onClick={handleGPSTemporaryExit}
+                  disabled={temporaryExitMutation.isPending || gpsLoading || (todayOutTemporaryPermission.actual_start_time && todayOutTemporaryPermission.actual_end_time)}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-zinc-100 disabled:text-zinc-400 disabled:shadow-none text-white font-bold py-2.5 px-4 rounded-xl shadow-md shadow-indigo-500/10 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap"
+                >
+                  {temporaryExitMutation.isPending || gpsLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Memproses...
+                    </>
+                  ) : !todayOutTemporaryPermission.actual_start_time ? (
+                    <>
+                      <PlayCircle className="h-4 w-4" />
+                      Mulai Keluar Sementara
+                    </>
+                  ) : !todayOutTemporaryPermission.actual_end_time ? (
+                    <>
+                      <PauseCircle className="h-4 w-4 text-emerald-300 animate-pulse" />
+                      Kembali Kerja (Tap In)
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 text-zinc-400" />
+                      Izin Keluar Selesai
+                    </>
+                  )}
+                </button>
+
+                {/* Info Card Realisasi Keluar Sementara */}
+                <div className="p-3 bg-zinc-50 border border-zinc-150 rounded-xl space-y-1.5 text-xs text-zinc-600">
+                  <p className="font-semibold text-zinc-800 flex items-center gap-1.5">
+                    <Timer className="h-4 w-4 text-indigo-600" />
+                    Realisasi Keluar Sementara
+                  </p>
+                  {todayOutTemporaryPermission.status === 'pending' && (
+                    <p className="text-[10px] text-amber-600 font-semibold leading-normal">
+                      ⚠️ Pengajuan izin Anda masih pending (belum disetujui Owner).
+                    </p>
+                  )}
+                  <div className="grid grid-cols-2 gap-2 text-[10px] pt-1">
+                    <div>
+                      <span className="text-zinc-400 block font-bold uppercase tracking-wider text-[8px]">Jam Pengajuan</span>
+                      <span className="font-bold text-zinc-700">
+                        {todayOutTemporaryPermission.start_time?.substring(0, 5) || "--:--"} s/d {todayOutTemporaryPermission.end_time?.substring(0, 5) || "--:--"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-400 block font-bold uppercase tracking-wider text-[8px]">Status Pengajuan</span>
+                      <span className={`font-bold ${todayOutTemporaryPermission.status === 'approved' ? 'text-green-600' : 'text-amber-600'}`}>
+                        {todayOutTemporaryPermission.status === 'approved' ? 'Disetujui' : 'Pending'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-400 block font-bold uppercase tracking-wider text-[8px]">Aktual Keluar</span>
+                      <span className="font-bold text-zinc-700">
+                        {todayOutTemporaryPermission.actual_start_time ? todayOutTemporaryPermission.actual_start_time.substring(0, 5) : "--:--"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-400 block font-bold uppercase tracking-wider text-[8px]">Aktual Kembali</span>
+                      <span className="font-bold text-zinc-700">
+                        {todayOutTemporaryPermission.actual_end_time ? todayOutTemporaryPermission.actual_end_time.substring(0, 5) : "--:--"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>

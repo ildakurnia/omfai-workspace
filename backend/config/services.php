@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'whatsapp' => [
+        'url' => env('WA_API_URL'),
+        'token' => env('WA_API_TOKEN'),
+        'owner_number' => env('WA_OWNER_NUMBER'),
+    ],
+
+    'frontend' => [
+        'url' => env('FRONTEND_URL', 'http://localhost:3000'),
+    ],
+
 ];

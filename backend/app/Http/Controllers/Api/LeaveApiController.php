@@ -147,21 +147,26 @@ class LeaveApiController extends Controller
         ]);
 
         // 4. Send WhatsApp Notification to Owner
-        $ownerNumber = env('WA_OWNER_NUMBER');
+        $ownerNumber = config('services.whatsapp.owner_number');
         if (!empty($ownerNumber)) {
             $typeLabel = str_replace('_', ' ', ucfirst($type));
             $formattedStart = $startDate->format('d M Y');
             $formattedEnd = $endDate->format('d M Y');
             
-            $waMessage = "*[Omfai Workspace - Pengajuan Cuti/Izin Baru]*\n\n"
-                . "Detail Pengajuan:\n"
+            $frontendUrl = config('services.frontend.url');
+            $waMessage = "🔔 *NOTIFIKASI PENGAJUAN CUTI / IZIN HARIAN*\n\n"
+                . "Halo Owner,\n\n"
+                . "Terdapat pengajuan cuti atau izin harian baru yang memerlukan keputusan Anda.\n\n"
+                . "👤 *Data Karyawan*\n"
                 . "• Nama: {$employee->name}\n"
-                . "• Employee ID: {$employee->employee_code}\n"
-                . "• Tipe: {$typeLabel}\n"
-                . "• Durasi: {$formattedStart} s/d {$formattedEnd} ({$requestedDays} hari)\n"
-                . "• Alasan: {$request->reason}\n"
-                . "• Status: Pending\n\n"
-                . "Mohon cek Dashboard Admin Omfai untuk memberikan persetujuan.";
+                . "• ID Karyawan: {$employee->employee_code}\n\n"
+                . "📝 *Detail Pengajuan*\n"
+                . "• Kategori: {$typeLabel}\n"
+                . "• Durasi: {$formattedStart} s/d {$formattedEnd} ({$requestedDays} Hari)\n"
+                . "• Alasan/Keperluan: \"_{$request->reason}_\"\n\n"
+                . "Sistem mendeteksi pengajuan ini berstatus *Pending*. Silakan klik link berikut untuk memproses pengajuan:\n"
+                . "🔗 {$frontendUrl}/attendance-leave \n\n"
+                . "Terima kasih. 🙏";
 
             WhatsAppHelper::sendMessage($ownerNumber, $waMessage);
         }

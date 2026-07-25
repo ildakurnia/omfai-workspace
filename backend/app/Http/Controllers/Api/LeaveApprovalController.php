@@ -128,14 +128,17 @@ class LeaveApprovalController extends Controller
             $formattedStart = $startDate->format('d M Y');
             $formattedEnd = $endDate->format('d M Y');
 
-            $waMessage = "*[Omfai - Status Pengajuan Cuti/Izin]*\n\n"
-                . "Halo {$employee->name},\n"
-                . "Pengajuan *{$typeLabel}* Anda telah disetujui.\n\n"
-                . "Detail:\n"
-                . "• Tanggal: {$formattedStart} s/d {$formattedEnd} ({$requestedDays} hari)\n"
-                . "• Status: *APPROVED*\n\n"
-                . "Salam Hangat,\n"
-                . "*Omfai*";
+            $frontendUrl = config('services.frontend.url');
+            $waMessage = "✅ *STATUS PERSETUJUAN CUTI / IZIN HARIAN*\n\n"
+                . "Halo {$employee->name},\n\n"
+                . "Pengajuan cuti/izin harian Anda telah disetujui oleh Admin/Owner.\n\n"
+                . "📝 *Detail Pengajuan*\n"
+                . "• Kategori: {$typeLabel}\n"
+                . "• Durasi: {$formattedStart} s/d {$formattedEnd} ({$requestedDays} Hari)\n"
+                . "• Status: Disetujui ✅\n\n"
+                . "Akses dashboard Anda untuk detailnya:\n"
+                . "🔗 {$frontendUrl}/dashboard \n\n"
+                . "Terima kasih atas kedisiplinan Anda. Selamat beraktivitas! 🙏";
 
             WhatsAppHelper::sendMessage($employee->whatsapp_number, $waMessage);
         }
@@ -207,15 +210,18 @@ class LeaveApprovalController extends Controller
             $formattedStart = $startDate->format('d M Y');
             $formattedEnd = $endDate->format('d M Y');
 
-            $waMessage = "*[Omfai - Status Pengajuan Cuti/Izin]*\n\n"
-                . "Halo {$employee->name},\n"
-                . "Pengajuan *{$typeLabel}* Anda telah ditolak.\n\n"
-                . "Detail:\n"
-                . "• Tanggal: {$formattedStart} s/d {$formattedEnd} ({$requestedDays} hari)\n"
-                . "• Status: *REJECTED*\n"
-                . "• Alasan Penolakan: {$request->rejection_reason}\n\n"
-                . "Salam Hangat,\n"
-                . "*Omfai*";
+            $frontendUrl = config('services.frontend.url');
+            $waMessage = "❌ *STATUS PENOLAKAN CUTI / IZIN HARIAN*\n\n"
+                . "Halo {$employee->name},\n\n"
+                . "Mohon maaf, pengajuan cuti/izin harian Anda telah ditolak oleh Admin/Owner.\n\n"
+                . "📝 *Detail Pengajuan*\n"
+                . "• Kategori: {$typeLabel}\n"
+                . "• Durasi: {$formattedStart} s/d {$formattedEnd} ({$requestedDays} Hari)\n"
+                . "• Status: Ditolak ❌\n"
+                . "• Alasan Penolakan: \"_{$request->rejection_reason}_\"\n\n"
+                . "Akses dashboard Anda untuk detailnya:\n"
+                . "🔗 {$frontendUrl}/dashboard \n\n"
+                . "Silakan hubungi pihak HRD/Admin jika ada pertanyaan lebih lanjut. 🙏";
 
             WhatsAppHelper::sendMessage($employee->whatsapp_number, $waMessage);
         }

@@ -119,7 +119,7 @@ class WorkHourPermissionController extends Controller
         ]);
 
         // Send WhatsApp Notification to Owner
-        $ownerNumber = env('WA_OWNER_NUMBER');
+        $ownerNumber = config('services.whatsapp.owner_number');
         if (!empty($ownerNumber)) {
             $typeLabel = match($request->type) {
                 'out_temporary' => 'Izin Keluar Sementara',
@@ -132,16 +132,21 @@ class WorkHourPermissionController extends Controller
                 ? "mulai jam " . ($request->start_time ?: '--:--') 
                 : ($request->start_time ?: '--:--') . " s/d " . ($request->end_time ?: '--:--');
 
-            $waMessage = "*[Omfai Workspace - Izin Jam Kerja Baru]*\n\n"
-                . "Detail Pengajuan:\n"
+            $frontendUrl = config('services.frontend.url');
+            $waMessage = "🔔 *NOTIFIKASI PENGAJUAN IZIN JAM KERJA*\n\n"
+                . "Halo Owner,\n\n"
+                . "Terdapat pengajuan izin jam kerja baru yang memerlukan keputusan Anda.\n\n"
+                . "👤 *Data Karyawan*\n"
                 . "• Nama: {$employee->name}\n"
-                . "• Employee ID: {$employee->employee_code}\n"
-                . "• Tipe: {$typeLabel}\n"
+                . "• ID Karyawan: {$employee->employee_code}\n\n"
+                . "📝 *Detail Pengajuan*\n"
+                . "• Kategori: {$typeLabel}\n"
                 . "• Tanggal: {$formattedDate}\n"
-                . "• Waktu: {$timeRange}\n"
-                . "• Alasan: {$request->reason}\n"
-                . "• Status: Pending\n\n"
-                . "Mohon cek Dashboard Admin Omfai untuk memberikan persetujuan.";
+                . "• Jam Pengajuan: {$timeRange}\n"
+                . "• Alasan/Keperluan: \"_{$request->reason}_\"\n\n"
+                . "Sistem mendeteksi pengajuan ini berstatus *Pending*. Silakan klik link berikut untuk memproses pengajuan:\n"
+                . "🔗 {$frontendUrl}/attendance-leave \n\n"
+                . "Terima kasih. 🙏";
 
             WhatsAppHelper::sendMessage($ownerNumber, $waMessage);
         }
@@ -280,15 +285,25 @@ class WorkHourPermissionController extends Controller
                 ? "mulai jam " . ($permission->start_time ?: '--:--') 
                 : ($permission->start_time ?: '--:--') . " s/d " . ($permission->end_time ?: '--:--');
 
-            $waMessage = "*[Omfai - Status Izin Jam Kerja]*\n\n"
-                . "Halo {$employee->name},\n"
-                . "Pengajuan izin *{$typeLabel}* Anda telah disetujui.\n\n"
-                . "Detail:\n"
+            $gpsReminder = "";
+            if ($permission->type === 'out_temporary') {
+                $gpsReminder = "\n\n📌 *Penting*\n"
+                    . "Untuk izin *Keluar Sementara*, silakan tap *\"Mulai Keluar\"* saat meninggalkan kantor, lalu tap *\"Kembali Kerja\"* setelah Anda kembali ke area kantor.";
+            }
+
+            $frontendUrl = config('services.frontend.url');
+            $waMessage = "🔔 *NOTIFIKASI PENGAJUAN IZIN JAM KERJA*\n\n"
+                . "Halo {$employee->name},\n\n"
+                . "Pengajuan izin jam kerja Anda telah disetujui oleh Admin/Owner.\n\n"
+                . "📝 *Detail Pengajuan*\n"
+                . "• Kategori: {$typeLabel}\n"
                 . "• Tanggal: {$formattedDate}\n"
-                . "• Waktu: {$timeRange}\n"
-                . "• Status: *APPROVED*\n\n"
-                . "Salam Hangat,\n"
-                . "*Omfai*";
+                . "• Jam Pengajuan: {$timeRange}\n"
+                . "• Status: ✅ Disetujui"
+                . $gpsReminder . "\n\n"
+                . "Akses dashboard Anda untuk detailnya:\n"
+                . "🔗 {$frontendUrl}/dashboard \n\n"
+                . "Terima kasih. Semoga aktivitas Anda hari ini berjalan lancar. 🙏";
 
             WhatsAppHelper::sendMessage($employee->whatsapp_number, $waMessage);
         }
@@ -362,16 +377,19 @@ class WorkHourPermissionController extends Controller
                 ? "mulai jam " . ($permission->start_time ?: '--:--') 
                 : ($permission->start_time ?: '--:--') . " s/d " . ($permission->end_time ?: '--:--');
 
-            $waMessage = "*[Omfai - Status Izin Jam Kerja]*\n\n"
-                . "Halo {$employee->name},\n"
-                . "Pengajuan izin *{$typeLabel}* Anda ditolak.\n\n"
-                . "Detail:\n"
+            $frontendUrl = config('services.frontend.url');
+            $waMessage = "❌ *STATUS PENOLAKAN IZIN JAM KERJA*\n\n"
+                . "Halo {$employee->name},\n\n"
+                . "Mohon maaf, pengajuan izin jam kerja Anda telah ditolak oleh Admin/Owner.\n\n"
+                . "📝 *Detail Pengajuan*\n"
+                . "• Kategori: {$typeLabel}\n"
                 . "• Tanggal: {$formattedDate}\n"
-                . "• Waktu: {$timeRange}\n"
-                . "• Status: *REJECTED*\n"
-                . "• Alasan Penolakan: {$request->rejection_reason}\n\n"
-                . "Salam Hangat,\n"
-                . "*Omfai*";
+                . "• Jam Pengajuan: {$timeRange}\n"
+                . "• Status: Ditolak ❌\n"
+                . "• Alasan Penolakan: \"_{$request->rejection_reason}_\"\n\n"
+                . "Akses dashboard Anda untuk detailnya:\n"
+                . "🔗 {$frontendUrl}/dashboard \n\n"
+                . "Silakan hubungi pihak HRD/Admin jika ada pertanyaan lebih lanjut. 🙏";
 
             WhatsAppHelper::sendMessage($employee->whatsapp_number, $waMessage);
         }
@@ -412,5 +430,129 @@ class WorkHourPermissionController extends Controller
             'success' => true,
             'message' => 'Pengajuan izin jam kerja berhasil dihapus.'
         ]);
+    }
+
+    /**
+     * Record actual start/end exit time with GPS detection for out_temporary type.
+     */
+    public function tapOutTemporary(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Koordinat lokasi (latitude & longitude) diperlukan.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $user = Auth::user();
+        $employee = $user->employee;
+
+        if (!$employee) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee profile not found.'
+            ], 404);
+        }
+
+        $now = Carbon::now();
+        $today = $now->toDateString();
+        $currentTime = $now->toTimeString();
+
+        // 1. Geofence Check
+        $geofences = \App\Models\Geofence::all();
+        if ($geofences->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No geofencing coordinates are configured on the server.'
+            ], 400);
+        }
+
+        $inRange = false;
+        $userLat = $request->latitude;
+        $userLng = $request->longitude;
+
+        foreach ($geofences as $geofence) {
+            $distance = $this->calculateDistance($userLat, $userLng, $geofence->latitude, $geofence->longitude);
+            if ($distance <= $geofence->radius) {
+                $inRange = true;
+                break;
+            }
+        }
+
+        if (!$inRange) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda berada di luar area geofence kantor yang diizinkan.'
+            ], 403);
+        }
+
+        // 2. Fetch today's approved or pending out_temporary permission
+        $permission = WorkHourPermission::where('employee_id', $employee->id)
+            ->where('date', $today)
+            ->where('type', 'out_temporary')
+            ->whereIn('status', ['approved', 'pending'])
+            ->first();
+
+        if (!$permission) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki izin keluar sementara (pending/approved) untuk hari ini.'
+            ], 403);
+        }
+
+        // 3. Process Toggle
+        if (is_null($permission->actual_start_time)) {
+            // Tap Out (Start Exit)
+            $permission->update([
+                'actual_start_time' => $currentTime
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Berhasil mencatat jam keluar sementara. Selamat jalan.',
+                'data' => $permission
+            ]);
+        } elseif (is_null($permission->actual_end_time)) {
+            // Tap In (Return to Work)
+            $permission->update([
+                'actual_end_time' => $currentTime
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Berhasil mencatat jam kembali kerja. Selamat bekerja kembali.',
+                'data' => $permission
+            ]);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda sudah menyelesaikan izin keluar sementara hari ini.'
+            ], 403);
+        }
+    }
+
+    /**
+     * Helper: Haversine distance formula (in meters).
+     */
+    private function calculateDistance($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371000; // Earth radius in meters
+
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+
+        $a = sin($dLat / 2) * sin($dLat / 2) +
+            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+            sin($dLon / 2) * sin($dLon / 2);
+
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+        return $earthRadius * $c;
     }
 }

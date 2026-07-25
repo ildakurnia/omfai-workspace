@@ -2178,6 +2178,21 @@ export default function AttendanceLeavePage() {
                                     <td className="p-3 text-zinc-500 font-semibold">
                                       <div className="text-zinc-700 font-bold">{dateStr}</div>
                                       <div className="text-xs text-zinc-400 mt-0.5">{timeRange}</div>
+                                      {item.type === "out_temporary" && item.status === "approved" && (() => {
+                                        const realisasi = getRealisasiLabel(item);
+                                        return (
+                                          <div className="mt-1 flex flex-col gap-0.5 text-left">
+                                            <div className="text-[10px] text-zinc-500 font-semibold">
+                                              Aktual: {item.actual_start_time ? item.actual_start_time.substring(0, 5) : "--:--"} s/d {item.actual_end_time ? item.actual_end_time.substring(0, 5) : "--:--"}
+                                            </div>
+                                            {realisasi && (
+                                              <span className={`inline-block w-fit text-[9px] font-bold px-1.5 py-0.5 rounded border ${realisasi.className}`}>
+                                                {realisasi.text}
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                     </td>
                                     <td className="p-3 text-zinc-650 max-w-[200px]"><ExpandableText text={item.reason} /></td>
                                     <td className="p-3 text-center">
@@ -3195,6 +3210,21 @@ export default function AttendanceLeavePage() {
                               <td className="p-3 text-zinc-500 font-semibold">
                                 <div className="text-zinc-700 font-bold">{dateStr}</div>
                                 <div className="text-[10px] text-zinc-400 mt-0.5">{timeRange}</div>
+                                {item.type === "out_temporary" && item.status === "approved" && (() => {
+                                  const realisasi = getRealisasiLabel(item);
+                                  return (
+                                    <div className="mt-1 flex flex-col gap-0.5 text-left">
+                                      <div className="text-[9px] text-zinc-500 font-semibold">
+                                        Aktual: {item.actual_start_time ? item.actual_start_time.substring(0, 5) : "--:--"} s/d {item.actual_end_time ? item.actual_end_time.substring(0, 5) : "--:--"}
+                                      </div>
+                                      {realisasi && (
+                                        <span className={`inline-block w-fit text-[8px] font-bold px-1.5 py-0.25 rounded border ${realisasi.className}`}>
+                                          {realisasi.text}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </td>
                               <td className="p-3 text-zinc-650 max-w-[300px]"><ExpandableText text={item.reason} /></td>
                               <td className="p-3 text-center">
@@ -3389,3 +3419,71 @@ export default function AttendanceLeavePage() {
     </DashboardLayout>
   );
 }
+
+// Helpers for actual temporary exit validation labels
+const parseTimeToMinutes = (timeStr: string) => {
+  if (!timeStr) return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+};
+
+const getRealisasiLabel = (item: any) => {
+  if (item.type !== 'out_temporary' || item.status !== 'approved') return null;
+  if (!item.actual_start_time) {
+    return {
+      text: "Belum Keluar Kantor",
+      className: "bg-zinc-50 text-zinc-500 border-zinc-200"
+    };
+  }
+  
+  const actStart = item.actual_start_time.substring(0, 5);
+  const actEnd = item.actual_end_time ? item.actual_end_time.substring(0, 5) : null;
+  
+  if (!actEnd) {
+    return {
+      text: `Sedang Keluar (Sejak ${actStart})`,
+      className: "bg-indigo-50 text-indigo-700 border-indigo-150"
+    };
+  }
+  
+  // Parse times to compare
+  const planStartMin = parseTimeToMinutes(item.start_time);
+  const planEndMin = parseTimeToMinutes(item.end_time);
+  const actStartMin = parseTimeToMinutes(item.actual_start_time);
+  const actEndMin = parseTimeToMinutes(item.actual_end_time);
+  
+  const planDur = planEndMin - planStartMin;
+  const actDur = actEndMin - actStartMin;
+  
+  const isLateReturn = (actEndMin - planEndMin) > 10;
+  const isOverDuration = (actDur - planDur) > 10;
+  const isEarlyExit = (planStartMin - actStartMin) > 15;
+  
+  if (isLateReturn && isOverDuration) {
+    return {
+      text: `Terlambat & Durasi Berlebih (+${actEndMin - planEndMin} mnt)`,
+      className: "bg-rose-50 text-rose-700 border-rose-150"
+    };
+  } else if (isOverDuration) {
+    return {
+      text: `Kelebihan Durasi (+${actDur - planDur} mnt)`,
+      className: "bg-red-50 text-red-700 border-red-150"
+    };
+  } else if (isLateReturn) {
+    // Durasi pas / kurang, tapi jam kembali telat (Jadwal Bergeser)
+    return {
+      text: `Jadwal Bergeser (Durasi Pas)`,
+      className: "bg-amber-50 text-amber-700 border-amber-150"
+    };
+  } else if (isEarlyExit) {
+    return {
+      text: `Keluar Lebih Awal (-${planStartMin - actStartMin} mnt)`,
+      className: "bg-yellow-50 text-yellow-750 border-yellow-150"
+    };
+  } else {
+    return {
+      text: "Sesuai Izin (Tepat Waktu)",
+      className: "bg-emerald-50 text-emerald-700 border-emerald-100"
+    };
+  }
+};

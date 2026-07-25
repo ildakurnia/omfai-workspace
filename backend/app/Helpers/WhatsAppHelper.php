@@ -16,28 +16,41 @@ class WhatsAppHelper
      */
     public static function sendMessage(string $target, string $message): bool
     {
-        // Fetch values from env or config
-        $token = env('WA_API_TOKEN');
+        // Fetch values from config
+        $url = config('services.whatsapp.url');
+        $token = config('services.whatsapp.token');
+
+        // Clean target number (ensure numbers only, convert 08xxx to 628xxx)
+        $target = preg_replace('/[^0-9]/', '', $target);
+        if (str_starts_with($target, '0')) {
+            $target = '62' . substr($target, 1);
+        }
 
         // Always log the message locally for audit/debug purposes
         Log::info("WhatsApp Helper send attempt [To: {$target}]: {$message}");
 
-        if (empty($token)) {
-            Log::info("WhatsApp API Token is empty (WA_API_TOKEN). Simulated message logged.");
+        if (empty($token) || empty($url)) {
+            Log::info("WhatsApp API Token or URL is empty (WA_API_TOKEN or WA_API_URL). Simulated message logged.");
             return true;
         }
 
         try {
-            // Using Fonnte API endpoint as specified in implementation plan
+            // Using CloudWA API v1 endpoint with Bearer token authorization
             $response = Http::withHeaders([
-                'Authorization' => $token,
-            ])->post('https://api.fonnte.com/send', [
-                'target' => $target,
-                'message' => $message,
+                'Authorization' => 'Bearer ' . $token,
+            ])->post($url, [
+                'recipient_type' => 'individual',
+                'to' => $target,
+                'type' => 'text',
+                'text' => [
+                    'body' => $message,
+                ],
             ]);
 
-            if ($response->successful()) {
-                Log::info("WhatsApp message successfully dispatched to {$target}. Status code: " . $response->status());
+            $responseData = $response->json();
+
+            if ($response->successful() && isset($responseData['code']) && $responseData['code'] === 200) {
+                Log::info("WhatsApp message successfully dispatched to {$target}. Response: " . json_encode($responseData));
                 return true;
             }
 

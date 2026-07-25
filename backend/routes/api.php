@@ -82,6 +82,7 @@ Route::middleware(['auth:sanctum', 'check.active'])->group(function () {
     Route::post('/work-hour-permissions', [WorkHourPermissionController::class, 'store']);
     Route::get('/work-hour-permissions', [WorkHourPermissionController::class, 'history']);
     Route::post('/work-hour-permissions/{id}/cancel', [WorkHourPermissionController::class, 'cancel']);
+    Route::post('/keluar-sementara', [WorkHourPermissionController::class, 'tapOutTemporary']);
 
     // Leave Approvals & Geofence Settings (Owner & Admin only)
     Route::middleware('role:Owner|Admin')->group(function () {
