@@ -41,7 +41,7 @@ class AttendanceApiController extends Controller
             ], 404);
         }
 
-        $now = Carbon::now();
+        $now = Carbon::now(config('app.timezone', 'Asia/Jakarta'));
         $today = $now->toDateString();
         $currentTime = $now->toTimeString();
         $dayOfWeek = $now->dayOfWeek; // 0 (Sunday) to 6 (Saturday)
@@ -300,7 +300,7 @@ class AttendanceApiController extends Controller
             ], 404);
         }
 
-        $now = Carbon::now();
+        $now = Carbon::now(config('app.timezone', 'Asia/Jakarta'));
         $today = $now->toDateString();
         $currentTime = $now->toTimeString();
 

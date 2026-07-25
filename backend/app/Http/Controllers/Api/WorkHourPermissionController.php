@@ -460,7 +460,7 @@ class WorkHourPermissionController extends Controller
             ], 404);
         }
 
-        $now = Carbon::now();
+        $now = Carbon::now(config('app.timezone', 'Asia/Jakarta'));
         $today = $now->toDateString();
         $currentTime = $now->toTimeString();
 
