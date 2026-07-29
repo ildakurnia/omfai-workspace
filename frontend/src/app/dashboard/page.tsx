@@ -29,6 +29,9 @@ import {
   Timer,
   Coffee,
   Check,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import ReviewModal from "@/components/review-modal";
@@ -474,15 +477,92 @@ export default function DashboardPage() {
     );
   };
 
-  // Query Data Dashboard (khusus Owner & Admin)
+  const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<string>("");
+
+  const handlePrevDate = () => {
+    const currDateStr = selectedAttendanceDate || todayStr;
+    const curr = new Date(currDateStr);
+    curr.setDate(curr.getDate() - 1);
+    setSelectedAttendanceDate(toLocalDateString(curr));
+  };
+
+  const handleNextDate = () => {
+    const currDateStr = selectedAttendanceDate || todayStr;
+    const curr = new Date(currDateStr);
+    curr.setDate(curr.getDate() + 1);
+    const nextStr = toLocalDateString(curr);
+    if (nextStr <= todayStr) {
+      setSelectedAttendanceDate(nextStr);
+    }
+  };
+
+  const handleResetDate = () => {
+    setSelectedAttendanceDate(todayStr);
+  };
+
+  const isSelectedToday = (selectedAttendanceDate || todayStr) === todayStr;
+  const activeDateFormatted = formatIndonesianDate(selectedAttendanceDate || todayStr);
+
+  const renderDateSwitcherUI = () => (
+    <div className="flex items-center gap-1.5 bg-zinc-50 border border-zinc-200 p-1 rounded-xl shadow-xs">
+      <button
+        onClick={handlePrevDate}
+        type="button"
+        title="Tanggal Sebelumnya (Kemarin)"
+        className="p-1.5 hover:bg-zinc-200/80 text-zinc-700 rounded-lg transition-all cursor-pointer"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+
+      <div className="flex items-center gap-1.5 px-2">
+        <Calendar className="h-3.5 w-3.5 text-[#FF8200] shrink-0" />
+        <input
+          type="date"
+          value={selectedAttendanceDate || todayStr}
+          max={todayStr}
+          onChange={(e) => {
+            if (e.target.value && e.target.value <= todayStr) {
+              setSelectedAttendanceDate(e.target.value);
+            }
+          }}
+          className="text-xs font-bold text-zinc-800 bg-transparent focus:outline-none cursor-pointer font-mono"
+        />
+      </div>
+
+      <button
+        onClick={handleNextDate}
+        disabled={isSelectedToday}
+        type="button"
+        title="Tanggal Selanjutnya"
+        className="p-1.5 hover:bg-zinc-200/80 text-zinc-700 rounded-lg transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+
+      {!isSelectedToday && (
+        <button
+          onClick={handleResetDate}
+          type="button"
+          title="Kembali ke Hari Ini"
+          className="bg-orange-100 hover:bg-orange-200 text-[#FF8200] text-[10px] font-extrabold px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ml-1"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Hari Ini
+        </button>
+      )}
+    </div>
+  );
+
+  // Query Data Dashboard (Owner, Admin, & Employee)
   const {
     data: dashboardData,
     isLoading: isDashboardLoading,
     error: dashboardError,
   } = useQuery({
-    queryKey: ["dashboardSummary"],
+    queryKey: ["dashboardSummary", selectedAttendanceDate || todayStr],
     queryFn: async () => {
-      const response = await api.get("/dashboard");
+      const targetDateParam = selectedAttendanceDate || todayStr;
+      const response = await api.get(`/dashboard?date=${targetDateParam}`);
       return response.data.data;
     },
     enabled: !!user,
@@ -1124,22 +1204,30 @@ export default function DashboardPage() {
           <div className="bg-white rounded-2xl border border-zinc-150 p-6 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
               <div>
-                <h3 className="text-base font-bold text-zinc-950 flex items-center gap-2">
+                <h3 className="text-base font-bold text-zinc-950 flex items-center gap-2 flex-wrap">
                   <Calendar className="h-4.5 w-4.5 text-[#FF8200]" />
-                  Monitoring Kehadiran Hari Ini
+                  {isSelectedToday ? "Monitoring Kehadiran Hari Ini" : `Monitoring Kehadiran — ${activeDateFormatted}`}
+                  {!isSelectedToday && (
+                    <span className="text-[10px] font-extrabold bg-orange-50 text-[#FF8200] border border-orange-200 px-2 py-0.5 rounded-full">
+                      📜 Riwayat Tanggal Lampau
+                    </span>
+                  )}
                 </h3>
                 <p className="text-xs text-zinc-400 font-semibold mt-0.5">
-                  Daftar kehadiran dan perizinan karyawan tanggal {formatIndonesianDate(new Date().toISOString().slice(0, 10))}.
+                  Daftar kehadiran dan perizinan karyawan tanggal {activeDateFormatted}.
                 </p>
               </div>
-              {activeAttendanceTab !== "all" && (
-                <button
-                  onClick={() => setActiveAttendanceTab("all")}
-                  className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold px-3.5 py-1.5 rounded-lg border border-zinc-200 cursor-pointer transition-all self-start sm:self-center"
-                >
-                  Tampilkan Semua Karyawan
-                </button>
-              )}
+              <div className="flex items-center gap-3 flex-wrap self-start sm:self-center">
+                {renderDateSwitcherUI()}
+                {activeAttendanceTab !== "all" && (
+                  <button
+                    onClick={() => setActiveAttendanceTab("all")}
+                    className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold px-3.5 py-1.5 rounded-lg border border-zinc-200 cursor-pointer transition-all"
+                  >
+                    Tampilkan Semua Karyawan
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Filter Tabs */}
@@ -1966,22 +2054,30 @@ export default function DashboardPage() {
         <div className="bg-white rounded-2xl border border-zinc-150 p-6 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
             <div>
-              <h3 className="text-base font-bold text-zinc-955 flex items-center gap-2">
+              <h3 className="text-base font-bold text-zinc-955 flex items-center gap-2 flex-wrap">
                 <Calendar className="h-4.5 w-4.5 text-[#FF8200]" />
-                Monitoring Kehadiran Hari Ini
+                {isSelectedToday ? "Monitoring Kehadiran Hari Ini" : `Monitoring Kehadiran — ${activeDateFormatted}`}
+                {!isSelectedToday && (
+                  <span className="text-[10px] font-extrabold bg-orange-50 text-[#FF8200] border border-orange-200 px-2 py-0.5 rounded-full">
+                    📜 Riwayat Tanggal Lampau
+                  </span>
+                )}
               </h3>
               <p className="text-xs text-zinc-400 font-semibold mt-0.5">
-                Daftar kehadiran dan perizinan seluruh karyawan tanggal {formatIndonesianDate(new Date().toISOString().slice(0, 10))}.
+                Daftar kehadiran dan perizinan seluruh karyawan tanggal {activeDateFormatted}.
               </p>
             </div>
-            {activeAttendanceTab !== "all" && (
-              <button
-                onClick={() => setActiveAttendanceTab("all")}
-                className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold px-3.5 py-1.5 rounded-lg border border-zinc-200 cursor-pointer transition-all self-start sm:self-center"
-              >
-                Tampilkan Semua Karyawan
-              </button>
-            )}
+            <div className="flex items-center gap-3 flex-wrap self-start sm:self-center">
+              {renderDateSwitcherUI()}
+              {activeAttendanceTab !== "all" && (
+                <button
+                  onClick={() => setActiveAttendanceTab("all")}
+                  className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold px-3.5 py-1.5 rounded-lg border border-zinc-200 cursor-pointer transition-all"
+                >
+                  Tampilkan Semua Karyawan
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Filter Tabs */}

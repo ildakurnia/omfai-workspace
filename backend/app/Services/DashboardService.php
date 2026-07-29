@@ -17,7 +17,7 @@ class DashboardService
      * 
      * @return array
      */
-    public function getDashboardSummary(): array
+    public function getDashboardSummary(?string $targetDate = null): array
     {
         app(\App\Services\ActivityService::class)->autoPauseActivities();
 
@@ -95,8 +95,8 @@ class DashboardService
             ->groupBy('categories.name')
             ->get();
 
-        // 6. Hitung statistik & detail kehadiran hari ini
-        $today = Carbon::now('Asia/Jakarta')->toDateString();
+        // 6. Hitung statistik & detail kehadiran berdasarkan tanggal (targetDate / hari ini)
+        $today = $targetDate ? Carbon::parse($targetDate, 'Asia/Jakarta')->toDateString() : Carbon::now('Asia/Jakarta')->toDateString();
 
         $employees = Employee::whereHas('user', function ($q) {
             $q->where('is_active', true);

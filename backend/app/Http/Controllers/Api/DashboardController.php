@@ -28,7 +28,8 @@ class DashboardController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $summary = $this->dashboardService->getDashboardSummary();
+        $targetDate = $request->query('date');
+        $summary = $this->dashboardService->getDashboardSummary($targetDate);
 
         return response()->json([
             'message' => 'Data summary dashboard berhasil dimuat.',
