@@ -485,7 +485,7 @@ export default function DashboardPage() {
       const response = await api.get("/dashboard");
       return response.data.data;
     },
-    enabled: !!isOwnerOrAdmin,
+    enabled: !!user,
   });
 
   // Query: Fetch ALL leave requests for Owner/Admin approval
@@ -1960,6 +1960,209 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Widget Kehadiran Hari Ini (Dapat Dilihat Juga oleh Karyawan) */}
+      {!isDashboardLoading && dashboardData?.attendanceSummary && (
+        <div className="bg-white rounded-2xl border border-zinc-150 p-6 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div>
+              <h3 className="text-base font-bold text-zinc-955 flex items-center gap-2">
+                <Calendar className="h-4.5 w-4.5 text-[#FF8200]" />
+                Monitoring Kehadiran Hari Ini
+              </h3>
+              <p className="text-xs text-zinc-400 font-semibold mt-0.5">
+                Daftar kehadiran dan perizinan seluruh karyawan tanggal {formatIndonesianDate(new Date().toISOString().slice(0, 10))}.
+              </p>
+            </div>
+            {activeAttendanceTab !== "all" && (
+              <button
+                onClick={() => setActiveAttendanceTab("all")}
+                className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold px-3.5 py-1.5 rounded-lg border border-zinc-200 cursor-pointer transition-all self-start sm:self-center"
+              >
+                Tampilkan Semua Karyawan
+              </button>
+            )}
+          </div>
+
+          {/* Filter Tabs */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 border-b border-zinc-100 pb-4">
+            <button
+              onClick={() => setActiveAttendanceTab("present")}
+              className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                activeAttendanceTab === "present"
+                  ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                  : "bg-emerald-50/50 text-emerald-800 border-emerald-100 hover:bg-emerald-50"
+              }`}
+            >
+              <span className={`text-xs uppercase tracking-wider font-bold ${
+                activeAttendanceTab === "present" ? "text-white" : "text-emerald-600"
+              }`}>Tepat Waktu</span>
+              <span className="text-3xl font-extrabold mt-1">
+                {dashboardData.attendanceSummary.onTimeCount}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveAttendanceTab("late")}
+              className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                activeAttendanceTab === "late"
+                  ? "bg-amber-600 text-white border-amber-600 shadow-sm"
+                  : "bg-amber-50/50 text-amber-850 border-amber-100 hover:bg-amber-50"
+              }`}
+            >
+              <span className={`text-xs uppercase tracking-wider font-bold ${
+                activeAttendanceTab === "late" ? "text-white" : "text-amber-750"
+              }`}>Terlambat</span>
+              <span className="text-3xl font-extrabold mt-1">
+                {dashboardData.attendanceSummary.lateCount}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveAttendanceTab("leave")}
+              className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                activeAttendanceTab === "leave"
+                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                  : "bg-blue-50/50 text-blue-800 border-blue-100 hover:bg-blue-50"
+              }`}
+            >
+              <span className={`text-xs uppercase tracking-wider font-bold ${
+                activeAttendanceTab === "leave" ? "text-white" : "text-blue-700"
+              }`}>Sakit / Cuti</span>
+              <span className="text-3xl font-extrabold mt-1">
+                {dashboardData.attendanceSummary.leaveCount}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveAttendanceTab("wh_permission")}
+              className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                activeAttendanceTab === "wh_permission"
+                  ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                  : "bg-purple-50/50 text-purple-850 border-purple-100 hover:bg-purple-50"
+              }`}
+            >
+              <span className={`text-xs uppercase tracking-wider font-bold ${
+                activeAttendanceTab === "wh_permission" ? "text-white" : "text-purple-700"
+              }`}>Izin Jam Kerja</span>
+              <span className="text-3xl font-extrabold mt-1">
+                {dashboardData.attendanceSummary.whPermissionCount || 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveAttendanceTab("absent")}
+              className={`px-4 py-3 rounded-xl border text-sm font-bold transition-all text-left flex flex-col justify-between cursor-pointer ${
+                activeAttendanceTab === "absent"
+                  ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                  : "bg-rose-50/50 text-rose-800 border-rose-100 hover:bg-rose-50"
+              }`}
+            >
+              <span className={`text-xs uppercase tracking-wider font-bold ${
+                activeAttendanceTab === "absent" ? "text-white" : "text-rose-700"
+              }`}>Belum Absen</span>
+              <span className="text-3xl font-extrabold mt-1">
+                {dashboardData.attendanceSummary.absentCount}
+              </span>
+            </button>
+          </div>
+
+          {/* List Karyawan */}
+          <div className="overflow-x-auto border border-zinc-150 rounded-xl shadow-sm">
+            <table className="w-full divide-y divide-zinc-150 text-left text-sm">
+              <thead className="bg-zinc-50/70 font-bold text-zinc-400 uppercase tracking-wider text-xs">
+                <tr>
+                  <th className="p-3.5 pl-5">Nama Karyawan</th>
+                  <th className="p-3.5">Absen Masuk</th>
+                  <th className="p-3.5">Jam Istirahat</th>
+                  <th className="p-3.5">Absen Pulang</th>
+                  <th className="p-3.5 text-center">Status Kehadiran</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
+                {dashboardData.attendanceSummary.details
+                  .filter((item: any) => {
+                    if (activeAttendanceTab === "all") return true;
+                    if (activeAttendanceTab === "present") return item.status === "present" || item.status === "wfh";
+                    return item.status === activeAttendanceTab;
+                  })
+                  .map((item: any) => {
+                    return (
+                      <tr key={item.employee_id} className="hover:bg-zinc-50/30">
+                        <td className="p-3.5 pl-5 flex items-center gap-3">
+                          <div className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 font-bold text-xs overflow-hidden relative">
+                            {item.avatar_url ? (
+                              <img src={item.avatar_url} className="h-full w-full object-cover" alt={item.name} />
+                            ) : (
+                              item.name.charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-bold text-zinc-900 flex items-center gap-1.5">
+                              {item.name}
+                              {item.is_earliest && (
+                                <span className="inline-flex items-center gap-1 bg-yellow-50 text-yellow-800 border border-yellow-200 text-xs px-2 py-0.5 rounded-md font-extrabold shadow-sm animate-pulse">
+                                  <Trophy className="h-3 w-3 text-yellow-600 fill-yellow-500 shrink-0" />
+                                  Datang Tercepat!
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-zinc-400 font-mono font-bold mt-0.5">{item.employee_code}</div>
+                          </div>
+                        </td>
+                        <td className="p-3.5 font-mono text-zinc-800 font-bold">
+                          <div className="flex items-center gap-1">
+                            {item.check_in}
+                            {item.is_earliest && (
+                              <span title="Datang Tercepat!">
+                                <Trophy className="h-3.5 w-3.5 text-yellow-500 fill-yellow-400 shrink-0" />
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3.5 font-mono text-zinc-850 font-bold">
+                          {item.break_start !== "-"
+                            ? `${item.break_start} - ${item.break_end !== "-" ? item.break_end : "..."}`
+                            : "-"}
+                        </td>
+                        <td className="p-3.5 font-mono text-zinc-800 font-bold">{item.check_out}</td>
+                        <td className="p-3.5 text-center">
+                          <span
+                            className={`inline-block text-xs font-extrabold px-2.5 py-1 rounded-full border uppercase tracking-wider ${
+                              item.status === "present"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                                : item.status === "late"
+                                ? "bg-amber-50 text-amber-700 border-amber-100"
+                                : item.status === "wfh"
+                                ? "bg-teal-50 text-teal-700 border-teal-100"
+                                : item.status === "leave"
+                                ? "bg-blue-50 text-blue-700 border-blue-100"
+                                : item.status === "wh_permission"
+                                ? "bg-purple-50 text-purple-700 border-purple-100"
+                                : "bg-rose-50 text-rose-700 border-rose-100"
+                            }`}
+                          >
+                            {item.status_label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                {dashboardData.attendanceSummary.details.filter((item: any) => {
+                  if (activeAttendanceTab === "all") return true;
+                  return item.status === activeAttendanceTab;
+                }).length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-zinc-400 text-xs">
+                      Tidak ada karyawan dengan status ini untuk hari ini.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Rekap Absensi Bulan Ini */}
       <div className="space-y-3">

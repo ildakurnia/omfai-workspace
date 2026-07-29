@@ -60,9 +60,11 @@ Route::middleware(['auth:sanctum', 'check.active'])->group(function () {
     Route::apiResource('activities', ActivityController::class);
     Route::post('activities/{activity}/review', [ActivityController::class, 'review'])->middleware('role:Owner');
 
-    // Dashboard & Reports (Owner & Admin Only)
+    // Dashboard (Semua role terautentikasi)
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+
+    // Reports (Owner & Admin Only)
     Route::middleware('role:Owner|Admin')->group(function () {
-        Route::get('/dashboard', [DashboardController::class, 'index']);
         Route::get('/reports', [ReportController::class, 'index']);
         Route::get('/reports/pdf', [ReportController::class, 'downloadPdf']);
     });

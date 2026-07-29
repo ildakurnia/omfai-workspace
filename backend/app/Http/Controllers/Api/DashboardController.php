@@ -28,13 +28,6 @@ class DashboardController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        // Pengamanan tambahan di controller (atau via middleware route)
-        if (!$request->user()->hasAnyRole(['Owner', 'Admin'])) {
-            return response()->json([
-                'message' => 'Anda tidak memiliki hak akses untuk melihat dashboard ini.'
-            ], 403);
-        }
-
         $summary = $this->dashboardService->getDashboardSummary();
 
         return response()->json([
