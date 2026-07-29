@@ -515,9 +515,9 @@ export default function ActivitiesPage() {
           <span className="text-sm font-bold uppercase tracking-wider text-zinc-500">Penyaringan Data</span>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="flex flex-col sm:flex-row sm:items-end flex-wrap gap-4">
           {/* Filter Periode */}
-          <div>
+          <div className="w-full sm:w-52">
             <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Periode Waktu</label>
             <select
               value={filterPeriod}
@@ -532,28 +532,30 @@ export default function ActivitiesPage() {
             </select>
           </div>
 
-          {/* Filter Kategori */}
-          <div>
-            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Kategori</label>
-            <select
-              value={filterCategory}
-              onChange={(e) => {
-                setFilterCategory(e.target.value);
-                setPage(1);
-              }}
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
-            >
-              <option value="">Semua Kategori</option>
-              {categoriesData?.map((cat: any) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Filter Kategori (Admin/Owner Only) */}
+          {(isAdmin || isOwner) && (
+            <div className="w-full sm:w-52">
+              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Kategori</label>
+              <select
+                value={filterCategory}
+                onChange={(e) => {
+                  setFilterCategory(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm text-zinc-700 bg-white focus:outline-none focus:ring-1 focus:ring-[#FF8200]"
+              >
+                <option value="">Semua Kategori</option>
+                {categoriesData?.map((cat: any) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Filter Status */}
-          <div>
+          <div className="w-full sm:w-48">
             <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Status</label>
             <select
               value={filterStatus}
@@ -571,8 +573,8 @@ export default function ActivitiesPage() {
           </div>
 
           {/* Filter Karyawan (Admin/Owner Only) */}
-          {(isAdmin || isOwner) ? (
-            <div>
+          {(isAdmin || isOwner) && (
+            <div className="w-full sm:w-52">
               <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Karyawan</label>
               <select
                 value={filterUser}
@@ -590,15 +592,13 @@ export default function ActivitiesPage() {
                 ))}
               </select>
             </div>
-          ) : (
-            <div className="hidden lg:block"></div>
           )}
 
           {/* Tombol Reset Filter */}
-          <div className="flex items-end">
+          <div className="sm:ml-auto">
             <button
               onClick={handleResetFilters}
-              className="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm font-bold py-2.5 px-4 rounded-lg transition-all cursor-pointer"
+              className="w-full sm:w-auto bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm font-bold py-2 px-4 rounded-lg transition-all cursor-pointer whitespace-nowrap"
             >
               Reset Filter
             </button>
