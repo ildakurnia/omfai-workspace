@@ -393,17 +393,30 @@ export default function PiketManagementPage() {
               </p>
             </div>
 
-            {isSchedulesLoading ? (
-              <div className="py-8 flex items-center justify-center gap-2 text-zinc-400 text-xs font-medium">
-                <Loader2 className="h-4 w-4 animate-spin text-[#FF8200]" />
-                Memuat jadwal piket...
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-2">
-                {piketSchedulesData?.map((sch: any) => {
-                  const dayName = dayTranslation[sch.day_of_week] || sch.day_of_week;
-                  const isToday = piketTodayData?.day_name === sch.day_of_week;
-                  const currentEmpIds: number[] = sch.employee_ids || [];
+            {(() => {
+              const defaultDays = [
+                { day_of_week: "Monday", employee_ids: [] },
+                { day_of_week: "Tuesday", employee_ids: [] },
+                { day_of_week: "Wednesday", employee_ids: [] },
+                { day_of_week: "Thursday", employee_ids: [] },
+                { day_of_week: "Friday", employee_ids: [] },
+              ];
+
+              const schedulesToRender = (piketSchedulesData && Array.isArray(piketSchedulesData) && piketSchedulesData.length > 0)
+                ? piketSchedulesData
+                : defaultDays;
+
+              return isSchedulesLoading ? (
+                <div className="py-8 flex items-center justify-center gap-2 text-zinc-400 text-xs font-medium">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#FF8200]" />
+                  Memuat jadwal piket...
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-2">
+                  {schedulesToRender.map((sch: any) => {
+                    const dayName = dayTranslation[sch.day_of_week] || sch.day_of_week;
+                    const isToday = piketTodayData?.day_name === sch.day_of_week;
+                    const currentEmpIds: number[] = sch.employee_ids || [];
 
                   return (
                     <div
@@ -469,7 +482,8 @@ export default function PiketManagementPage() {
                   );
                 })}
               </div>
-            )}
+            );
+          })()}
           </div>
         )}
       </div>
