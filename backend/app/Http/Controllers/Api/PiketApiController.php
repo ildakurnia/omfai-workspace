@@ -219,6 +219,19 @@ class PiketApiController extends Controller
     }
 
     /**
+     * Get list of employees for piket schedule selection.
+     */
+    public function getEmployees(): JsonResponse
+    {
+        $employees = \App\Models\Employee::orderBy('name', 'asc')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $employees,
+        ]);
+    }
+
+    /**
      * Update piket schedule for a specific day with multiple employee IDs.
      */
     public function updateDaySchedule(Request $request): JsonResponse

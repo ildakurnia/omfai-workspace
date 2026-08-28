@@ -108,10 +108,24 @@ export default function PiketManagementPage() {
 
   // Query all active employees for selection dropdown
   const { data: allEmployeesList } = useQuery({
-    queryKey: ["allUsersForPiketPage"],
+    queryKey: ["allEmployeesForPiketPage"],
     queryFn: async () => {
-      const res = await api.get("/users");
-      return res.data.data?.filter((u: any) => u.employee) || [];
+      try {
+        const res = await api.get("/piket/employees");
+        if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
+          return res.data.data;
+        }
+      } catch (e) {}
+
+      try {
+        const res = await api.get("/users");
+        const list = res.data.data || res.data || [];
+        if (Array.isArray(list)) {
+          return list.map((u: any) => u.employee || u).filter((e: any) => e && e.id && e.name);
+        }
+      } catch (e) {}
+
+      return [];
     },
     enabled: mounted && !!user,
   });
@@ -415,11 +429,15 @@ export default function PiketManagementPage() {
                             Pilih Petugas Piket:
                           </span>
                           <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                            {allEmployeesList?.map((u: any) => {
-                              const isChecked = currentEmpIds.includes(u.employee.id);
+                            {allEmployeesList?.map((empItem: any) => {
+                              const empId = empItem.id || empItem.employee?.id;
+                              const empName = empItem.name || empItem.employee?.name;
+                              if (!empId) return null;
+
+                              const isChecked = currentEmpIds.includes(empId);
                               return (
                                 <label
-                                  key={u.employee.id}
+                                  key={empId}
                                   className={`flex items-center gap-2 p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
                                     isChecked
                                       ? "bg-orange-100/70 border-orange-300 text-orange-950"
@@ -430,11 +448,11 @@ export default function PiketManagementPage() {
                                     type="checkbox"
                                     checked={isChecked}
                                     onChange={() =>
-                                      handleEmployeeToggle(sch.day_of_week, currentEmpIds, u.employee.id)
+                                      handleEmployeeToggle(sch.day_of_week, currentEmpIds, empId)
                                     }
                                     className="h-3.5 w-3.5 rounded border-zinc-300 text-[#FF8200] focus:ring-[#FF8200] cursor-pointer accent-[#FF8200]"
                                   />
-                                  <span className="truncate">{u.employee.name}</span>
+                                  <span className="truncate">{empName}</span>
                                 </label>
                               );
                             })}

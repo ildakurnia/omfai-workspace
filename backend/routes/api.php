@@ -93,6 +93,7 @@ Route::middleware(['auth:sanctum', 'check.active'])->group(function () {
     Route::get('/piket/today', [PiketApiController::class, 'today']);
     Route::get('/piket/schedules', [PiketApiController::class, 'getSchedules']);
     Route::get('/piket/settings', [PiketApiController::class, 'getSettings']);
+    Route::get('/piket/employees', [PiketApiController::class, 'getEmployees']);
 
     // Piket Management (Admin only)
     Route::middleware('role:Admin')->group(function () {
