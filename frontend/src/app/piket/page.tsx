@@ -37,7 +37,7 @@ export default function PiketManagementPage() {
 
   const roles = user?.roles || [];
   const isAdmin = mounted && roles.includes("Admin");
-  const isOwnerOrAdmin = isAdmin;
+  const isOwnerOrAdmin = mounted && (roles.includes("Owner") || roles.includes("Admin"));
 
   const todayStr = new Date().toLocaleDateString("en-CA");
 
@@ -51,7 +51,7 @@ export default function PiketManagementPage() {
       const res = await api.get("/piket/settings");
       return res.data.data;
     },
-    enabled: isOwnerOrAdmin,
+    enabled: mounted && !!user,
   });
 
   useEffect(() => {
@@ -93,6 +93,7 @@ export default function PiketManagementPage() {
       const res = await api.get("/piket/today");
       return res.data.data;
     },
+    enabled: mounted && !!user,
   });
 
   // Query weekly piket schedules (Monday - Friday)
@@ -102,7 +103,7 @@ export default function PiketManagementPage() {
       const res = await api.get("/piket/schedules");
       return res.data.data || [];
     },
-    enabled: isOwnerOrAdmin,
+    enabled: mounted && !!user,
   });
 
   // Query all active employees for selection dropdown
@@ -112,7 +113,7 @@ export default function PiketManagementPage() {
       const res = await api.get("/users");
       return res.data.data?.filter((u: any) => u.employee) || [];
     },
-    enabled: isOwnerOrAdmin,
+    enabled: mounted && !!user,
   });
 
   // Mutation to update schedule for a specific day with multiple employees
