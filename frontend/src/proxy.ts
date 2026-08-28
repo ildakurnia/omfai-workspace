@@ -30,6 +30,7 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/activities") ||
     pathname.startsWith("/categories") ||
     pathname.startsWith("/users") ||
+    pathname.startsWith("/piket") ||
     pathname.startsWith("/reports");
 
   if (isProtectedRoute) {
@@ -71,6 +72,8 @@ export const config = {
     "/categories/:path*",
     "/users",
     "/users/:path*",
+    "/piket",
+    "/piket/:path*",
     "/reports",
     "/reports/:path*",
   ],
