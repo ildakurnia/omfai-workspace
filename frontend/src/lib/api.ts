@@ -41,10 +41,14 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Hapus token yang tidak valid dan redirect ke login
-      Cookies.remove("omfai_token");
-      Cookies.remove("omfai_user");
-      if (typeof window !== "undefined") {
+      // Hapus token yang tidak valid secara menyeluruh
+      Cookies.remove("omfai_token", { path: "/" });
+      Cookies.remove("omfai_user", { path: "/" });
+      if (typeof document !== "undefined") {
+        document.cookie = "omfai_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        document.cookie = "omfai_user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      }
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
         window.location.href = "/login";
       }
     }
