@@ -37,7 +37,7 @@ export default function PiketManagementPage() {
 
   const roles = user?.roles || [];
   const isAdmin = mounted && roles.includes("Admin");
-  const isOwnerOrAdmin = mounted && (roles.includes("Owner") || roles.includes("Admin"));
+  const isOwnerOrAdmin = isAdmin;
 
   const todayStr = new Date().toLocaleDateString("en-CA");
 
@@ -140,6 +140,10 @@ export default function PiketManagementPage() {
       queryClient.invalidateQueries({ queryKey: ["piketToday"] });
       queryClient.invalidateQueries({ queryKey: ["piketSchedules"] });
     },
+    onError: (err: any) => {
+      queryClient.invalidateQueries({ queryKey: ["piketSchedules"] });
+      alert(err.response?.data?.message || "Gagal mengubah jadwal piket.");
+    },
   });
 
   // Mutation to quick swap today's piket duty employee
@@ -166,13 +170,27 @@ export default function PiketManagementPage() {
     Friday: "Jumat",
   };
 
-  const handleEmployeeToggle = (dayOfWeek: string, currentEmpIds: number[], empId: number) => {
+  const handleEmployeeToggle = (dayOfWeek: string, currentEmpIds: any[], empId: any) => {
+    const targetId = Number(empId);
+    const numericCurrentIds = (currentEmpIds || []).map((id: any) => Number(id));
+
     let updatedIds: number[];
-    if (currentEmpIds.includes(empId)) {
-      updatedIds = currentEmpIds.filter((id) => id !== empId);
+    if (numericCurrentIds.includes(targetId)) {
+      updatedIds = numericCurrentIds.filter((id) => id !== targetId);
     } else {
-      updatedIds = [...currentEmpIds, empId];
+      updatedIds = [...numericCurrentIds, targetId];
     }
+
+    // Update optimis ke cache agar centang langsung berubah di layar secara instan
+    queryClient.setQueryData(["piketSchedules"], (oldData: any) => {
+      if (!Array.isArray(oldData)) return oldData;
+      return oldData.map((sch: any) => {
+        if (sch.day_of_week === dayOfWeek) {
+          return { ...sch, employee_ids: updatedIds };
+        }
+        return sch;
+      });
+    });
 
     updatePiketDayScheduleMutation.mutate({
       day_of_week: dayOfWeek,
@@ -447,7 +465,7 @@ export default function PiketManagementPage() {
                               const empName = empItem.name || empItem.employee?.name;
                               if (!empId) return null;
 
-                              const isChecked = currentEmpIds.includes(empId);
+                              const isChecked = (currentEmpIds || []).some((id: any) => Number(id) === Number(empId));
                               return (
                                 <label
                                   key={empId}

@@ -223,7 +223,9 @@ class PiketApiController extends Controller
      */
     public function getEmployees(): JsonResponse
     {
-        $employees = \App\Models\Employee::orderBy('name', 'asc')->get();
+        $employees = \App\Models\Employee::whereHas('user', function ($q) {
+            $q->where('is_active', true);
+        })->orderBy('name', 'asc')->get();
 
         return response()->json([
             'success' => true,
