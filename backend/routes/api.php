@@ -12,10 +12,13 @@ use App\Http\Controllers\Api\LeaveApiController;
 use App\Http\Controllers\Api\LeaveApprovalController;
 use App\Http\Controllers\Api\GeofenceApiController;
 use App\Http\Controllers\Api\WorkHourPermissionController;
+use App\Http\Controllers\Api\PiketApiController;
 use Illuminate\Support\Facades\Route;
 
-// Public route
+// Public routes
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/piket/confirm/{token}', [PiketApiController::class, 'getConfirmDetails']);
+Route::post('/piket/confirm/{token}', [PiketApiController::class, 'submitConfirm']);
 
 // Protected routes (Harus login & kirim token Bearer)
 Route::middleware(['auth:sanctum', 'check.active'])->group(function () {
@@ -86,7 +89,20 @@ Route::middleware(['auth:sanctum', 'check.active'])->group(function () {
     Route::post('/work-hour-permissions/{id}/cancel', [WorkHourPermissionController::class, 'cancel']);
     Route::post('/keluar-sementara', [WorkHourPermissionController::class, 'tapOutTemporary']);
 
-    // Leave Approvals & Geofence Settings (Owner & Admin only)
+    // Piket & Kebersihan Module
+    Route::get('/piket/today', [PiketApiController::class, 'today']);
+    Route::get('/piket/schedules', [PiketApiController::class, 'getSchedules']);
+    Route::get('/piket/settings', [PiketApiController::class, 'getSettings']);
+
+    // Piket Management (Admin only)
+    Route::middleware('role:Admin')->group(function () {
+        Route::post('/piket/schedules/day', [PiketApiController::class, 'updateDaySchedule']);
+        Route::post('/piket/reassign-today', [PiketApiController::class, 'reassignToday']);
+        Route::post('/piket/settings', [PiketApiController::class, 'updateSettings']);
+        Route::post('/piket/test-wa', [PiketApiController::class, 'testWa']);
+    });
+
+    // Leave Approvals & Geofence Settings (Owner & Admin)
     Route::middleware('role:Owner|Admin')->group(function () {
         Route::get('/leave-requests', [LeaveApprovalController::class, 'index']);
         Route::post('/leave-requests/{id}/approve', [LeaveApprovalController::class, 'approve']);

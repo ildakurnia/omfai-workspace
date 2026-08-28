@@ -6,8 +6,10 @@ let apiBaseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
 if (typeof window !== "undefined") {
   const hostname = window.location.hostname;
-  if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-    // Jika diakses online, arahkan ke domain/subdomain aktif + /api
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    apiBaseURL = process.env.NEXT_PUBLIC_API_URL;
+  } else if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+    // Saat di-deploy ke produksi (domain online), arahkan ke domain aktif + /api
     apiBaseURL = window.location.origin + "/api";
   }
 }

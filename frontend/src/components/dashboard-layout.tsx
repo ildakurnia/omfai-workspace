@@ -20,6 +20,7 @@ import {
   Loader2,
   CalendarCheck,
   Bell,
+  Sparkles,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -158,6 +159,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       href: "/holidays",
       icon: Calendar,
       show: isAdmin, // Hidden for presentation (originally: isAdmin)
+    },
+    {
+      name: "Jadwal Piket",
+      href: "/piket",
+      icon: Sparkles,
+      show: isAdmin, // Hanya Admin
     },
   ];
 

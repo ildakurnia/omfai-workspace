@@ -32,6 +32,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import DashboardLayout from "@/components/dashboard-layout";
 import ReviewModal from "@/components/review-modal";
@@ -553,6 +554,197 @@ export default function DashboardPage() {
     </div>
   );
 
+  const [isOwnerPiketDismissed, setIsOwnerPiketDismissed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const targetDate = selectedAttendanceDate || todayStr;
+      const dismissed = localStorage.getItem(`omfai_piket_owner_dismissed_${targetDate}`) === "true";
+      setIsOwnerPiketDismissed(dismissed);
+    }
+  }, [selectedAttendanceDate, todayStr]);
+
+  const renderPiketWidgetUI = () => {
+    if (isPiketLoading || !piketTodayData) return null;
+
+    const isOwner = roles.includes("Owner");
+    const isAdmin = roles.includes("Admin");
+
+    const dutyEmp = piketTodayData.duty_employee;
+    const log = piketTodayData.log;
+    const dutyEmployees: any[] = piketTodayData.duty_employees || (dutyEmp ? [dutyEmp] : []);
+    const logs: any[] = piketTodayData.logs || (log ? [log] : []);
+
+    // Identifikasi karyawan yang sedang login
+    const currentEmployeeId = user?.employee?.id || user?.employee_id;
+
+    // Cek apakah user yang login termasuk dalam daftar petugas piket hari ini
+    const isCurrentUserDutyEmployee = currentEmployeeId
+      ? dutyEmployees.some((emp: any) => Number(emp.id) === Number(currentEmployeeId))
+      : false;
+
+    // KETENTUAN HAK AKSES:
+    // Jika BUKAN Owner, BUKAN Admin, DAN BUKAN petugas piket hari ini -> JANGAN TAMPILKAN BANNER SAMA SEKALI
+    if (!isOwner && !isAdmin && !isCurrentUserDutyEmployee) {
+      return null;
+    }
+
+    // TAMPILAN KHUSUS OWNER (Hanya pantau & laporan selesai + Tombol Sudah Dilihat)
+    if (isOwner) {
+      if (isOwnerPiketDismissed) return null;
+
+      const completedLogs = logs.filter((l: any) => l.is_completed);
+      const hasCompleted = completedLogs.length > 0;
+      const proofLog = completedLogs.find((l: any) => l.proof_image_url);
+
+      const targetDate = selectedAttendanceDate || todayStr;
+
+      const handleDismiss = () => {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`omfai_piket_owner_dismissed_${targetDate}`, "true");
+        }
+        setIsOwnerPiketDismissed(true);
+      };
+
+      if (hasCompleted) {
+        const completedNames = completedLogs.map((l: any) => l.employee_name || l.employee?.name).filter(Boolean).join(", ");
+        const firstLog = completedLogs[0];
+        const timeStr = firstLog?.completed_at
+          ? new Date(firstLog.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " WIB"
+          : "";
+
+        return (
+          <div className="bg-emerald-500/10 rounded-2xl border border-emerald-300 p-4.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3.5">
+              <div className="h-10 w-10 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0 font-black text-sm">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-200/80 px-2 py-0.5 rounded-md">
+                    🔔 Laporan Piket Selesai
+                  </span>
+                </div>
+                <p className="text-xs font-bold text-zinc-900 mt-1">
+                  <span className="text-emerald-800 font-extrabold">{completedNames || "Employee OMFAI"}</span> telah menyelesaikan tugas piket hari ini{timeStr ? ` pukul ${timeStr}` : ''}!
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 self-start sm:self-center">
+              {proofLog && (
+                <a
+                  href={proofLog.proof_image_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-white hover:bg-emerald-50 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-xl border border-emerald-300 transition-all flex items-center gap-1"
+                >
+                  🖼️ Foto Bukti
+                </a>
+              )}
+
+              <button
+                type="button"
+                onClick={handleDismiss}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl transition-all shadow-2xs flex items-center gap-1 cursor-pointer"
+              >
+                ✕ Tutup Notifikasi
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // Owner View saat piket belum selesai
+      const dutyNames = dutyEmployees.map((e: any) => e.name).join(", ");
+      return (
+        <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent rounded-2xl border border-orange-200/60 p-4.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3.5">
+            <div className="h-10 w-10 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center text-[#FF8200] shrink-0 font-black text-sm">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-orange-600 bg-orange-100/80 px-2 py-0.5 rounded-md">
+                  Piket Hari Ini
+                </span>
+                <span className="text-xs font-black text-zinc-900">{dutyNames || "Belum Ditetapkan"}</span>
+              </div>
+              <p className="text-xs text-zinc-500 font-medium mt-0.5">
+                Siram Bunga (Pagi {piketTodayData?.morning_time || '08:00'}) & Kebersihan (Sore {piketTodayData?.afternoon_time || '16:00'})
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            <span className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-extrabold px-3 py-1.5 rounded-xl">
+              <Clock className="h-3.5 w-3.5 text-amber-600" />
+              Menunggu Pelaksanaan Piket
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    // TAMPILAN UNTUK ADMIN & EMPLOYEE YANG PIKET
+    const myLog = logs.find((l: any) => Number(l.employee_id) === Number(currentEmployeeId)) || log;
+    const myDutyEmp = dutyEmployees.find((e: any) => Number(e.id) === Number(currentEmployeeId)) || dutyEmp;
+
+    const displayEmp = (isCurrentUserDutyEmployee && !isAdmin) ? myDutyEmp : dutyEmp;
+    const displayLog = (isCurrentUserDutyEmployee && !isAdmin) ? myLog : log;
+
+    return (
+      <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent rounded-2xl border border-orange-200/60 p-4.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-3.5">
+          <div className="h-10 w-10 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center text-[#FF8200] shrink-0 font-black text-sm">
+            {displayEmp?.avatar_url ? (
+              <img src={displayEmp.avatar_url} className="h-full w-full object-cover rounded-full" alt={displayEmp.name} />
+            ) : (
+              <Sparkles className="h-5 w-5" />
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-orange-600 bg-orange-100/80 px-2 py-0.5 rounded-md">
+                {isCurrentUserDutyEmployee ? "Tugas Piket Anda Hari Ini!" : "Piket Hari Ini"}
+              </span>
+              <span className="text-xs font-black text-zinc-900">{displayEmp?.name || "Belum Ditetapkan"}</span>
+            </div>
+            <p className="text-xs text-zinc-500 font-medium mt-0.5">
+              Siram Bunga (Pagi {piketTodayData?.morning_time || '08:00'}) & Kebersihan (Sore {piketTodayData?.afternoon_time || '16:00'})
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 self-start sm:self-center flex-wrap">
+          {displayLog?.is_completed && (
+            <span className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-extrabold px-3 py-2 rounded-xl">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              Terisi {displayLog.completed_at ? `(${new Date(displayLog.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} WIB)` : ''}
+            </span>
+          )}
+
+          <a
+            href={`/piket/confirm?token=${displayLog?.token || ''}`}
+            className="bg-[#FF8200] hover:bg-[#e07200] text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            {displayLog?.is_completed ? "Isi / Update Form" : "Form Konfirmasi"}
+          </a>
+
+          {isAdmin && (
+            <a
+              href="/piket"
+              className="bg-white hover:bg-zinc-100 text-zinc-800 text-xs font-bold px-3 py-2 rounded-xl border border-zinc-200 transition-all flex items-center gap-1 cursor-pointer"
+            >
+              Kelola Jadwal &rarr;
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // Query Data Dashboard (Owner, Admin, & Employee)
   const {
     data: dashboardData,
@@ -566,6 +758,50 @@ export default function DashboardPage() {
       return response.data.data;
     },
     enabled: !!user,
+  });
+
+  // Query Data Piket Hari Ini
+  const { data: piketTodayData, isLoading: isPiketLoading } = useQuery({
+    queryKey: ["piketToday", selectedAttendanceDate || todayStr],
+    queryFn: async () => {
+      const targetDateParam = selectedAttendanceDate || todayStr;
+      const res = await api.get(`/piket/today?date=${targetDateParam}`);
+      return res.data.data;
+    },
+    enabled: !!user,
+  });
+
+  // Modal State Kelola Jadwal Piket (Owner & Admin)
+  const [isPiketModalOpen, setIsPiketModalOpen] = useState(false);
+
+  const { data: piketSchedulesData } = useQuery({
+    queryKey: ["piketSchedules"],
+    queryFn: async () => {
+      const res = await api.get("/piket/schedules");
+      return res.data.data || [];
+    },
+    enabled: !!isOwnerOrAdmin && isPiketModalOpen,
+  });
+
+  const { data: allUsersList } = useQuery({
+    queryKey: ["allUsersForPiket"],
+    queryFn: async () => {
+      const res = await api.get("/users");
+      return res.data.data || [];
+    },
+    enabled: !!isOwnerOrAdmin && isPiketModalOpen,
+  });
+
+  const updatePiketScheduleMutation = useMutation({
+    mutationFn: async ({ id, employee_id }: { id: number; employee_id: number }) => {
+      const res = await api.put(`/piket/schedules/${id}`, { employee_id });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["piketToday"] });
+      queryClient.invalidateQueries({ queryKey: ["piketSchedules"] });
+      showAlert("Jadwal piket berhasil diperbarui.", "success", "Persetujuan Berhasil");
+    },
   });
 
   // Query: Fetch ALL leave requests for Owner/Admin approval
@@ -769,6 +1005,7 @@ export default function DashboardPage() {
 
     return (
       <DashboardLayout>
+        {renderPiketWidgetUI()}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-zinc-950">Monitoring Ringkasan Perusahaan</h2>
@@ -1414,6 +1651,8 @@ export default function DashboardPage() {
 
 
 
+
+
         {/* 1. Summary Cards */}
         {isDashboardLoading ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -1797,6 +2036,7 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
+      {renderPiketWidgetUI()}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-zinc-950">Halo, {user.name}!</h2>
@@ -2260,6 +2500,8 @@ export default function DashboardPage() {
         </div>
       )}
 
+
+
       {/* Rekap Absensi Bulan Ini */}
       <div className="space-y-3">
         <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
@@ -2530,6 +2772,81 @@ export default function DashboardPage() {
               alt="Foto Bukti Kerja" 
               className="max-w-full max-h-[80vh] rounded-lg object-contain" 
             />
+          </div>
+        </div>
+      )}
+      {/* Modal Kelola Jadwal Piket (Owner & Admin) */}
+      {isPiketModalOpen && isOwnerOrAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl border border-zinc-200 shadow-2xl max-w-lg w-full overflow-hidden">
+            <div className="p-6 bg-gradient-to-r from-orange-500 to-amber-500 text-white flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-extrabold flex items-center gap-2">
+                  <Sparkles className="h-5 w-5" />
+                  Kelola Jadwal Piket Harian
+                </h3>
+                <p className="text-xs opacity-90 font-medium mt-0.5">Atur petugas piket & siram bunga (Senin - Jumat)</p>
+              </div>
+              <button
+                onClick={() => setIsPiketModalOpen(false)}
+                className="p-1.5 rounded-full hover:bg-white/20 text-white transition-all cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              {piketSchedulesData && piketSchedulesData.length > 0 ? (
+                piketSchedulesData.map((sch: any) => {
+                  const dayIndonesian: Record<string, string> = {
+                    Monday: "Senin",
+                    Tuesday: "Selasa",
+                    Wednesday: "Rabu",
+                    Thursday: "Kamis",
+                    Friday: "Jumat",
+                  };
+
+                  return (
+                    <div key={sch.id} className="flex items-center justify-between p-3.5 bg-zinc-50 border border-zinc-200 rounded-2xl">
+                      <div className="font-extrabold text-zinc-900 text-sm min-w-[80px]">
+                        {dayIndonesian[sch.day_of_week] || sch.day_of_week}
+                      </div>
+
+                      <select
+                        value={sch.employee_id}
+                        onChange={(e) => {
+                          const newEmpId = Number(e.target.value);
+                          updatePiketScheduleMutation.mutate({ id: sch.id, employee_id: newEmpId });
+                        }}
+                        disabled={updatePiketScheduleMutation.isPending}
+                        className="rounded-xl border border-zinc-250 px-3 py-2 text-xs font-bold text-zinc-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#FF8200] cursor-pointer"
+                      >
+                        {allUsersList
+                          ?.filter((u: any) => u.employee)
+                          .map((u: any) => (
+                            <option key={u.employee.id} value={u.employee.id}>
+                              {u.employee.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-6 text-zinc-400 text-xs font-medium">
+                  Memuat data jadwal piket...
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-zinc-50 border-t border-zinc-150 text-right">
+              <button
+                onClick={() => setIsPiketModalOpen(false)}
+                className="bg-zinc-800 hover:bg-zinc-900 text-white font-bold text-xs px-5 py-2.5 rounded-xl cursor-pointer transition-all"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}
