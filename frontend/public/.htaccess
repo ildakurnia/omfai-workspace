@@ -1,13 +1,18 @@
+DirectoryIndex index.html
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # Jika file asli ada (JS, CSS, gambar, dll), sajikan langsung
+  # 1. Jika file fisik asli ada (JS, CSS, gambar, dll), sajikan langsung
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
 
-  # Jika file .html ada untuk URL ini, sajikan file .html
-  # Contoh: /piket/confirm → piket/confirm.html
+  # 2. Jika request cocok dengan folder yang memiliki index.html (contoh: /piket/confirm)
+  RewriteCond %{DOCUMENT_ROOT}/$1/index.html -f
+  RewriteRule ^(.*[^/])$ $1/index.html [L]
+
+  # 3. Jika file .html ada untuk URL ini (contoh: /login -> login.html)
   RewriteCond %{REQUEST_FILENAME}.html -f
   RewriteRule ^(.*)$ $1.html [L]
 </IfModule>
