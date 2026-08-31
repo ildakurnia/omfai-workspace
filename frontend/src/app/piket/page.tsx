@@ -296,7 +296,7 @@ export default function PiketManagementPage() {
                         </div>
                       ) : (
                         <a
-                          href={`/piket/confirm?token=${logItem.token}`}
+                          href={`/piket/confirm.html?token=${logItem.token}`}
                           target="_blank"
                           rel="noreferrer"
                           className="w-full bg-[#FF8200] hover:bg-[#e07200] text-white font-extrabold py-2.5 px-3 rounded-xl shadow-2xs text-xs text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer"
