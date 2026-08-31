@@ -33,6 +33,15 @@ jobs:
         cd frontend
         npm run build
 
+    - name: Prepare Dual HTML Resolution (Direct & Directory Index)
+      run: |
+        find frontend/out -name "*.html" -not -name "index.html" -not -name "404.html" | while read file; do
+          dir="${file%.html}"
+          mkdir -p "$dir"
+          cp "$file" "$dir/index.html"
+          echo "Prepared $file -> $dir/index.html"
+        done
+
     - name: Deploy to FTP Server
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
       with:
