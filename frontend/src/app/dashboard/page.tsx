@@ -725,7 +725,7 @@ export default function DashboardPage() {
           )}
 
           <a
-            href={`/piket/confirm/?token=${displayLog?.token || ''}`}
+            href={`/piket/confirm?token=${displayLog?.token || ''}`}
             className="bg-[#FF8200] hover:bg-[#e07200] text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
           >
             <FileText className="h-3.5 w-3.5" />
