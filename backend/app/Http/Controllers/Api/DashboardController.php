@@ -72,4 +72,21 @@ class DashboardController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Endpoint untuk mendapatkan Top 3 peraih piala kedatangan tercepat (Early Bird) bulan sebelumnya.
+     */
+    public function getEarlyBirdChampions(Request $request): JsonResponse
+    {
+        $month = $request->query('month') ? (int)$request->query('month') : null;
+        $year = $request->query('year') ? (int)$request->query('year') : null;
+
+        $data = $this->dashboardService->getEarlyBirdChampions($month, $year);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data juara Early Bird berhasil dimuat.',
+            'data' => $data,
+        ]);
+    }
 }

@@ -7,6 +7,7 @@ use App\Models\Activity;
 use App\Models\Category;
 use App\Models\User;
 use App\Models\Employee;
+use App\Models\Attendance;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -473,5 +474,122 @@ class DashboardService
         }
 
         return $totalOvertimeMinutes;
+    }
+
+    /**
+     * Menghitung Top 3 peraih piala kedatangan tercepat (Early Bird) di bulan tertentu.
+     * Secara default mengambil bulan sebelumnya untuk perayaan di tanggal 1.
+     *
+     * @param int|null $month
+     * @param int|null $year
+     * @return array
+     */
+    public function getEarlyBirdChampions(?int $month = null, ?int $year = null): array
+    {
+        $now = Carbon::now('Asia/Jakarta');
+        if (!$month || !$year) {
+            $targetDate = $now->copy()->subMonth();
+            $month = (int)$targetDate->month;
+            $year = (int)$targetDate->year;
+        } else {
+            $targetDate = Carbon::createFromDate($year, $month, 1, 'Asia/Jakarta');
+        }
+
+        $startOfMonth = $targetDate->copy()->startOfMonth()->toDateString();
+        $endOfMonth = $targetDate->copy()->endOfMonth()->toDateString();
+
+        // Query kehadiran on-time / hadir di bulan target untuk karyawan aktif
+        $attendances = Attendance::with(['employee.user.roles'])
+            ->whereBetween('date', [$startOfMonth, $endOfMonth])
+            ->whereNotNull('check_in')
+            ->whereIn('status', ['present', 'late', 'wfh'])
+            ->whereHas('employee.user', function ($q) {
+                $q->where('is_active', true);
+            })
+            ->get();
+
+        // Kelompokkan per tanggal untuk mencari yang check-in paling awal setiap hari kerja
+        $attendancesByDate = $attendances->groupBy(function ($item) {
+            return $item->date instanceof Carbon ? $item->date->toDateString() : (string)$item->date;
+        });
+
+        $employeeStats = [];
+
+        foreach ($attendancesByDate as $dateStr => $dayAttendances) {
+            $earliestAttendance = $dayAttendances->sortBy('check_in')->first();
+            if ($earliestAttendance) {
+                $empId = $earliestAttendance->employee_id;
+                if (!isset($employeeStats[$empId])) {
+                    $employee = $earliestAttendance->employee;
+                    $user = $employee ? $employee->user : null;
+                    $roleNames = $user ? $user->roles->pluck('name')->implode(', ') : 'Employee';
+
+                    $employeeStats[$empId] = [
+                        'employee_id' => $empId,
+                        'user_id' => $user ? $user->id : null,
+                        'name' => $employee->name ?? ($user->name ?? 'Karyawan'),
+                        'email' => $user->email ?? '',
+                        'avatar' => $user && $user->avatar ? asset('storage/' . $user->avatar) : null,
+                        'role' => $roleNames ?: 'Employee',
+                        'trophies' => 0,
+                        'check_in_times' => [],
+                    ];
+                }
+                $employeeStats[$empId]['trophies'] += 1;
+                $employeeStats[$empId]['check_in_times'][] = $earliestAttendance->check_in;
+            }
+        }
+
+        // Hitung rata-rata jam kedatangan untuk penentu peringkat jika jumlah piala sama
+        foreach ($employeeStats as &$stat) {
+            $times = $stat['check_in_times'];
+            if (count($times) > 0) {
+                $totalSeconds = 0;
+                foreach ($times as $t) {
+                    $parts = explode(':', $t);
+                    $h = (int)($parts[0] ?? 0);
+                    $m = (int)($parts[1] ?? 0);
+                    $s = (int)($parts[2] ?? 0);
+                    $totalSeconds += ($h * 3600) + ($m * 60) + $s;
+                }
+                $avgSec = (int)($totalSeconds / count($times));
+                $stat['avg_seconds'] = $avgSec;
+                $avgH = str_pad((string)(int)floor($avgSec / 3600), 2, '0', STR_PAD_LEFT);
+                $avgM = str_pad((string)(int)floor(($avgSec % 3600) / 60), 2, '0', STR_PAD_LEFT);
+                $stat['avg_check_in'] = "{$avgH}:{$avgM} WIB";
+            } else {
+                $stat['avg_seconds'] = 999999;
+                $stat['avg_check_in'] = '-';
+            }
+            unset($stat['check_in_times']);
+        }
+        unset($stat);
+
+        // Urutkan: Total piala terbanyak (DESC), lalu rata-rata tercepat (ASC)
+        usort($employeeStats, function ($a, $b) {
+            if ($a['trophies'] !== $b['trophies']) {
+                return $b['trophies'] <=> $a['trophies'];
+            }
+            return $a['avg_seconds'] <=> $b['avg_seconds'];
+        });
+
+        // Ambil Top 3 Juara
+        $champions = [];
+        $rank = 1;
+        foreach ($employeeStats as $stat) {
+            if ($rank > 3) break;
+            $stat['rank'] = $rank;
+            $champions[] = $stat;
+            $rank++;
+        }
+
+        return [
+            'month' => (int)$month,
+            'year' => (int)$year,
+            'month_name' => $targetDate->locale('id')->isoFormat('MMMM Y'),
+            'month_name_en' => $targetDate->format('F Y'),
+            'champions' => $champions,
+            'total_champions' => count($champions),
+        ];
     }
 }

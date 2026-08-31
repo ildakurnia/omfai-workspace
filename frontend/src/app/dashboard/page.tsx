@@ -39,6 +39,7 @@ import ReviewModal from "@/components/review-modal";
 import api from "@/lib/api";
 import { formatDuration, formatActiveDuration, formatIndonesianDate, toLocalDateString, formatActiveOvertimeDuration, calculateOvertimeMinutes } from "@/lib/utils";
 import AlertModal from "@/components/alert-modal";
+import EarlyBirdChampionsModal, { EarlyBirdChampionsData } from "@/components/early-bird-champions-modal";
 
 // Helper to generate the monthly grid and calculate attendance statuses
 const generateMonthlyGrid = (monthStr: string, attendances: any[], leaves: any[], holidays: any[], whPermissions: any[] = []) => {
@@ -243,6 +244,46 @@ export default function DashboardPage() {
     },
     enabled: !!isEmployee,
   });
+
+  // Query & State: Top 3 Morning Champions Bulanan (Muncul otomatis tanggal 1)
+  const [isChampionsModalOpen, setIsChampionsModalOpen] = useState(false);
+  const { data: earlyBirdChampionsData } = useQuery<EarlyBirdChampionsData>({
+    queryKey: ["earlyBirdChampions"],
+    queryFn: async () => {
+      const res = await api.get("/dashboard/early-bird-champions");
+      return res.data.data;
+    },
+  });
+
+  // Efek Pemicu Otomatis: Hanya muncul di tanggal 1 setiap bulan, 1x per karyawan (Anti-Spam)
+  useEffect(() => {
+    if (
+      !earlyBirdChampionsData ||
+      !earlyBirdChampionsData.champions ||
+      earlyBirdChampionsData.champions.length === 0
+    ) {
+      return;
+    }
+
+    const today = new Date();
+    const isFirstDay = today.getDate() === 1; // Strict: HANYA TANGGAL 1
+    const storageKey = `omfai_seen_champions_${earlyBirdChampionsData.year}_${earlyBirdChampionsData.month}`;
+    const hasSeen = typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
+
+    if (isFirstDay && !hasSeen) {
+      setIsChampionsModalOpen(true);
+    }
+  }, [earlyBirdChampionsData]);
+
+  const handleCloseChampionsModal = () => {
+    if (earlyBirdChampionsData) {
+      const storageKey = `omfai_seen_champions_${earlyBirdChampionsData.year}_${earlyBirdChampionsData.month}`;
+      try {
+        localStorage.setItem(storageKey, "true");
+      } catch (e) {}
+    }
+    setIsChampionsModalOpen(false);
+  };
 
   // Mutation: Clock In / Clock Out
   const tapMutation = useMutation({
@@ -1011,16 +1052,28 @@ export default function DashboardPage() {
             <h2 className="text-2xl font-bold text-zinc-950">Monitoring Ringkasan Perusahaan</h2>
             <p className="text-sm text-zinc-500 font-medium mt-1.5">Pantau kondisi aktivitas seluruh karyawan secara real-time.</p>
           </div>
-          {roles.includes("Admin") && (
-            <button
-              onClick={handleClearCache}
-              disabled={isClearingCache}
-              className="inline-flex items-center gap-2 bg-red-550 hover:bg-red-100/80 text-red-650 border border-red-100 text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer transition-all self-start sm:self-center disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isClearingCache ? "animate-spin" : ""}`} />
-              {isClearingCache ? "Membersihkan..." : "Bersihkan Cache"}
-            </button>
-          )}
+          <div className="flex items-center gap-2.5 flex-wrap self-start sm:self-center">
+            {earlyBirdChampionsData && earlyBirdChampionsData.champions && earlyBirdChampionsData.champions.length > 0 && (
+              <button
+                onClick={() => setIsChampionsModalOpen(true)}
+                className="inline-flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-black px-3.5 py-2.5 rounded-xl cursor-pointer transition-all shadow-2xs"
+                title="Lihat Top 3 Early Bird Champions Bulan Lalu"
+              >
+                <Trophy className="h-3.5 w-3.5 text-amber-600 animate-pulse" />
+                🏆 Juara Pagi Bulan Lalu
+              </button>
+            )}
+            {roles.includes("Admin") && (
+              <button
+                onClick={handleClearCache}
+                disabled={isClearingCache}
+                className="inline-flex items-center gap-2 bg-red-550 hover:bg-red-100/80 text-red-650 border border-red-100 text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isClearingCache ? "animate-spin" : ""}`} />
+                {isClearingCache ? "Membersihkan..." : "Bersihkan Cache"}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Persetujuan Pengajuan Karyawan (Hanya tampil jika ada request pending) */}
@@ -1996,6 +2049,13 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Modal Top 3 Morning Champions */}
+        <EarlyBirdChampionsModal
+          isOpen={isChampionsModalOpen}
+          onClose={handleCloseChampionsModal}
+          data={earlyBirdChampionsData || null}
+        />
       </DashboardLayout>
     );
   }
@@ -2042,6 +2102,16 @@ export default function DashboardPage() {
           <h2 className="text-2xl font-bold text-zinc-950">Halo, {user.name}!</h2>
           <p className="text-sm text-zinc-500 font-medium mt-1.5">Catat dan kelola aktivitas harian Anda dengan mudah di bawah ini.</p>
         </div>
+        {earlyBirdChampionsData && earlyBirdChampionsData.champions && earlyBirdChampionsData.champions.length > 0 && (
+          <button
+            onClick={() => setIsChampionsModalOpen(true)}
+            className="inline-flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-black px-3.5 py-2.5 rounded-xl cursor-pointer transition-all self-start sm:self-center shadow-2xs"
+            title="Lihat Top 3 Early Bird Champions Bulan Lalu"
+          >
+            <Trophy className="h-3.5 w-3.5 text-amber-600 animate-pulse" />
+            🏆 Juara Pagi Bulan Lalu
+          </button>
+        )}
       </div>
 
       {/* Widget Absen Cepat Karyawan */}
@@ -2850,6 +2920,13 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Top 3 Morning Champions */}
+      <EarlyBirdChampionsModal
+        isOpen={isChampionsModalOpen}
+        onClose={handleCloseChampionsModal}
+        data={earlyBirdChampionsData || null}
+      />
     </DashboardLayout>
   );
 }

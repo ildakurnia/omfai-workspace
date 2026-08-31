@@ -63,8 +63,9 @@ Route::middleware(['auth:sanctum', 'check.active'])->group(function () {
     Route::apiResource('activities', ActivityController::class);
     Route::post('activities/{activity}/review', [ActivityController::class, 'review'])->middleware('role:Owner');
 
-    // Dashboard (Semua role terautentikasi)
+    // Dashboard & Champions (Semua role terautentikasi)
     Route::get('/dashboard', [DashboardController::class, 'index']);
+    Route::get('/dashboard/early-bird-champions', [DashboardController::class, 'getEarlyBirdChampions']);
 
     // Reports (Owner & Admin Only)
     Route::middleware('role:Owner|Admin')->group(function () {
