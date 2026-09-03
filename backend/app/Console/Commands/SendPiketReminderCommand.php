@@ -87,7 +87,7 @@ class SendPiketReminderCommand extends Command
                 ]
             );
 
-            $confirmUrl = "{$frontendUrl}/piket/confirm?token={$piketLog->token}";
+            $confirmUrl = "{$frontendUrl}/piket/confirm.html?token={$piketLog->token}";
 
             if ($time === 'morning') {
                 if ($piketLog->morning_wa_sent_at) {

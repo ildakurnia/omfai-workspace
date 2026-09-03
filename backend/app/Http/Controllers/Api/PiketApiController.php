@@ -421,7 +421,7 @@ class PiketApiController extends Controller
                 ['token' => Str::random(12)]
             );
 
-            $confirmUrl = "{$frontendUrl}/piket/confirm?token={$piketLog->token}";
+            $confirmUrl = "{$frontendUrl}/piket/confirm.html?token={$piketLog->token}";
 
             if ($session === 'morning') {
                 $message = "Halo {$employee->name}! 🌸\n\n"
