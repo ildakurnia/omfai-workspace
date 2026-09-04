@@ -157,28 +157,9 @@ class PiketApiController extends Controller
         $log->completed_at = now();
         $log->save();
 
-        // Send automatic WhatsApp notification to Owner
-        $ownerNumber = config('services.whatsapp.owner_number');
-        if (!empty($ownerNumber)) {
-            $employeeName = $log->employee ? $log->employee->name : 'N/A';
-            $dateFormatted = Carbon::parse($log->date)->translatedFormat('l, d F Y');
-            $proofUrlStr = $log->proof_image_path ? asset('storage/' . $log->proof_image_path) : 'Tidak ada foto (opsional)';
-
-            $waMessage = "🔔 LAPORAN PIKET SELESAI\n\n"
-                       . "Petugas {$employeeName} telah menyelesaikan tugas piket hari ini ({$dateFormatted}).\n"
-                       . "Status Ceklis: ✅ Selesai\n"
-                       . "Foto Bukti: {$proofUrlStr}";
-
-            if ($log->notes) {
-                $waMessage .= "\nCatatan: \"{$log->notes}\"";
-            }
-
-            WhatsAppHelper::sendMessage($ownerNumber, $waMessage);
-        }
-
         return response()->json([
             'success' => true,
-            'message' => 'Konfirmasi piket berhasil disimpan dan notifikasi telah dikirim ke Owner.',
+            'message' => 'Konfirmasi piket berhasil disimpan.',
             'data' => [
                 'is_completed' => true,
                 'completed_at' => $log->completed_at->toIso8601String(),
