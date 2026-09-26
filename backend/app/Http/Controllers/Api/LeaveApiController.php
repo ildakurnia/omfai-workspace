@@ -269,4 +269,157 @@ class LeaveApiController extends Controller
             'data' => $leaveRequest
         ]);
     }
+
+    /**
+     * Complete an opened/pending leave request ticket by the employee.
+     */
+    public function completeSubmission(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'type' => 'required|in:annual_leave,sick_leave,permission,wfh,off_site',
+            'reason' => 'required|string',
+            'attachment' => 'nullable|file|mimes:jpeg,png,jpg,pdf|max:2048',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $user = Auth::user();
+        $employee = $user->employee;
+
+        if (!$employee) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Employee profile not found.'
+            ], 404);
+        }
+
+        $leaveRequest = LeaveRequest::find($id);
+
+        if (!$leaveRequest) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tiket pengajuan cuti/izin tidak ditemukan.'
+            ], 404);
+        }
+
+        if ($leaveRequest->employee_id !== $employee->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki hak akses untuk melengkapi pengajuan ini.'
+            ], 403);
+        }
+
+        if ($leaveRequest->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pengajuan ini sudah diproses dan tidak dapat diubah lagi.'
+            ], 422);
+        }
+
+        $type = $request->type;
+        $requestedDays = $leaveRequest->duration_days;
+
+        // 1. Annual Leave Rule Check
+        if ($type === 'annual_leave') {
+            if (empty($employee->joined_at)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tanggal bergabung karyawan belum diatur.'
+                ], 400);
+            }
+
+            $joinedAt = Carbon::parse($employee->joined_at);
+            $tenureInMonths = $joinedAt->diffInMonths(Carbon::now());
+
+            if ($tenureInMonths < 12) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda belum memenuhi syarat Cuti Tahunan (minimal masa kerja 1 tahun / 12 bulan).'
+                ], 403);
+            }
+
+            if ($requestedDays > $employee->leave_balance) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Sisa cuti tidak mencukupi ({$employee->leave_balance} hari tersisa, pengajuan {$requestedDays} hari)."
+                ], 403);
+            }
+        }
+
+        // 2. Sick Leave Rule Check
+        if ($type === 'sick_leave') {
+            if (!$request->hasFile('attachment') && empty($leaveRequest->attachment)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pengajuan sakit wajib melampirkan surat dokter / bukti medis.'
+                ], 422);
+            }
+        }
+
+        // 3. Permission Rule Check
+        if ($type === 'permission') {
+            if (strlen(trim($request->reason)) < 10) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Alasan izin wajib diisi minimal 10 karakter.'
+                ], 422);
+            }
+        }
+
+        // Upload attachment if present
+        $attachmentPath = $leaveRequest->attachment;
+        if ($request->hasFile('attachment')) {
+            $attachmentPath = $request->file('attachment')->store('leave_attachments', 'public');
+        }
+
+        $leaveRequest->update([
+            'type' => $type,
+            'reason' => $request->reason,
+            'attachment' => $attachmentPath,
+        ]);
+
+        // Send WhatsApp Notification to Owner
+        $ownerNumber = config('services.whatsapp.owner_number');
+        if (!empty($ownerNumber)) {
+            $typeLabel = match($type) {
+                'annual_leave' => 'Cuti Tahunan',
+                'sick_leave' => 'Cuti Sakit',
+                'permission' => 'Izin',
+                'wfh' => 'Work From Home (WFH)',
+                'off_site' => 'Off-site Work',
+                default => str_replace('_', ' ', ucfirst($type)),
+            };
+            $formattedStart = Carbon::parse($leaveRequest->start_date)->format('d M Y');
+            $formattedEnd = Carbon::parse($leaveRequest->end_date)->format('d M Y');
+            
+            $frontendUrl = config('services.frontend.url');
+            $waMessage = "🔔 *NOTIFIKASI PENGAJUAN CUTI / IZIN SUSULAN*\n\n"
+                . "Halo Owner,\n\n"
+                . "Karyawan telah melengkapi pengajuan cuti/izin susulan yang sebelumnya dibuka oleh Admin.\n\n"
+                . "👤 *Data Karyawan*\n"
+                . "• Nama: {$employee->name}\n"
+                . "• ID Karyawan: {$employee->employee_code}\n\n"
+                . "📝 *Detail Pengajuan*\n"
+                . "• Kategori: {$typeLabel}\n"
+                . "• Durasi: {$formattedStart} s/d {$formattedEnd} ({$requestedDays} Hari)\n"
+                . "• Alasan: \"_{$request->reason}_\"\n\n"
+                . "Silakan klik link berikut untuk memeriksa dan memproses persetujuan:\n"
+                . "🔗 {$frontendUrl}/attendance-leave \n\n"
+                . "Terima kasih. 🙏";
+
+            WhatsAppHelper::sendMessage($ownerNumber, $waMessage);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Pengajuan cuti/izin berhasil dilengkapi dan dikirim ke Admin/Owner.',
+            'data' => $leaveRequest
+        ]);
+    }
 }

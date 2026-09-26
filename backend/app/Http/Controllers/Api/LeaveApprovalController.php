@@ -299,4 +299,76 @@ class LeaveApprovalController extends Controller
             'message' => 'Leave request deleted/cancelled successfully.'
         ]);
     }
+
+    /**
+     * Open leave request submission ticket for a specific employee and date (Admin/Owner only).
+     */
+    public function openSubmission(Request $request)
+    {
+        $user = Auth::user();
+
+        if (!$user->hasRole('Owner') && !$user->hasRole('Admin')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only Owner or Admin can open leave request submissions.'
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'employee_id' => 'required|exists:employees,id',
+            'date' => 'required|date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $employeeId = $request->employee_id;
+        $date = $request->date;
+
+        // Check if attendance already exists
+        $hasAttendance = \App\Models\Attendance::where('employee_id', $employeeId)
+            ->where('date', $date)
+            ->exists();
+
+        if ($hasAttendance) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Karyawan sudah memiliki data absensi pada tanggal tersebut.'
+            ], 422);
+        }
+
+        // Check if pending or approved leave request already exists
+        $hasLeave = LeaveRequest::where('employee_id', $employeeId)
+            ->whereIn('status', ['pending', 'approved'])
+            ->where('start_date', '<=', $date)
+            ->where('end_date', '>=', $date)
+            ->exists();
+
+        if ($hasLeave) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sudah ada pengajuan cuti/izin yang aktif pada tanggal tersebut.'
+            ], 422);
+        }
+
+        $leaveRequest = LeaveRequest::create([
+            'employee_id' => $employeeId,
+            'type' => 'permission',
+            'start_date' => $date,
+            'end_date' => $date,
+            'reason' => '[DIBUKA OLEH ADMIN] Menunggu pengisian oleh karyawan.',
+            'status' => 'pending',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Akses pengajuan susulan berhasil dibuka untuk karyawan.',
+            'data' => $leaveRequest
+        ], 201);
+    }
 }

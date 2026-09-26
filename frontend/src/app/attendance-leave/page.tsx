@@ -79,6 +79,7 @@ export default function AttendanceLeavePage() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [isRejectionModalOpen, setIsRejectionModalOpen] = useState(false);
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+  const [completingLeaveId, setCompletingLeaveId] = useState<number | null>(null);
   const [isLeaveHistoryModalOpen, setIsLeaveHistoryModalOpen] = useState(false);
   const [rejectionId, setRejectionId] = useState<number | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
@@ -451,14 +452,23 @@ export default function AttendanceLeavePage() {
         formData.append("attachment", values.attachment[0]);
       }
 
-      const res = await api.post("/ajukan-cuti", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-      return res.data;
+      if (completingLeaveId) {
+        const res = await api.post(`/ajukan-cuti/${completingLeaveId}/complete`, formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        return res.data;
+      } else {
+        const res = await api.post("/ajukan-cuti", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        return res.data;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       reset({
         type: "annual_leave",
         start_date: "",
@@ -466,12 +476,32 @@ export default function AttendanceLeavePage() {
         reason: "",
         attachment: null,
       });
+      setCompletingLeaveId(null);
       queryClient.invalidateQueries({ queryKey: ["leaveHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["attendanceHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["allLeaveRequestsList"] });
+      queryClient.invalidateQueries({ queryKey: ["adminSelectedEmpAttendance"] });
       setIsLeaveModalOpen(false);
-      showAlert("Pengajuan cuti/izin berhasil dikirim.", "success", "Pengajuan Dikirim");
+      showAlert(data.message || "Pengajuan cuti/izin berhasil dikirim.", "success", "Pengajuan Dikirim");
     },
     onError: (err: any) => {
       showAlert(err.response?.data?.message || "Gagal mengirim pengajuan.", "error", "Gagal Mengirim");
+    },
+  });
+
+  // Mutation: Open Submission for Employee (Admin/Owner)
+  const openSubmissionMutation = useMutation({
+    mutationFn: async (payload: { employee_id: number; date: string }) => {
+      const res = await api.post("/leave-requests/open-submission", payload);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["adminSelectedEmpAttendance"] });
+      queryClient.invalidateQueries({ queryKey: ["allLeaveRequestsList"] });
+      showAlert(data.message || "Akses pengajuan susulan berhasil dibuka untuk karyawan.", "success", "Akses Dibuka");
+    },
+    onError: (err: any) => {
+      showAlert(err.response?.data?.message || "Gagal membuka akses pengajuan.", "error", "Gagal Membuka Akses");
     },
   });
 
@@ -816,7 +846,8 @@ export default function AttendanceLeavePage() {
     submitLeaveMutation.mutate(values);
   };
 
-  const handleOpenLeaveModalWithDate = (dateStr: string) => {
+  const handleOpenLeaveModalWithDate = (dateStr: string, leaveId?: number | null) => {
+    setCompletingLeaveId(leaveId || null);
     reset({
       type: "annual_leave",
       start_date: dateStr,
@@ -825,6 +856,24 @@ export default function AttendanceLeavePage() {
       attachment: null,
     });
     setIsLeaveModalOpen(true);
+  };
+
+  const handleOpenSubmissionForEmployee = (dateStr: string) => {
+    if (!adminSelectedEmpAttendance?.employee?.id) return;
+    const empName = adminSelectedEmpAttendance.employee.name || "Karyawan";
+    const formattedDate = formatIndonesianDate(dateStr);
+
+    showConfirm(
+      `Buka akses pengajuan cuti/izin/WFH susulan untuk ${empName} pada tanggal ${formattedDate}?`,
+      () => {
+        openSubmissionMutation.mutate({
+          employee_id: adminSelectedEmpAttendance.employee.id,
+          date: dateStr,
+        });
+      },
+      "info",
+      "Buka Akses Pengajuan"
+    );
   };
 
   const handleOpenRejectModal = (id: number, type: "leave" | "work_hour" = "leave") => {
@@ -996,6 +1045,8 @@ export default function AttendanceLeavePage() {
       const isSunday = dayOfWeek === 0;
       const isHoliday = formattedHolidays.includes(dayStr);
 
+      let isOpenedByAdmin = false;
+
       if (attendance) {
         checkIn = attendance.check_in ? attendance.check_in.substring(0, 5) : "-";
         checkOut = attendance.check_out ? attendance.check_out.substring(0, 5) : "-";
@@ -1048,6 +1099,7 @@ export default function AttendanceLeavePage() {
           }
         }
       } else if (leave) {
+        isOpenedByAdmin = leave.status === "pending" && (leave.reason?.startsWith("[DIBUKA OLEH ADMIN]") || leave.reason?.includes("Menunggu pengisian"));
         status = leave.type;
         const baseLabel = leave.type === "annual_leave" ? "Cuti" : leave.type === "sick_leave" ? "Sakit" : leave.type === "wfh" ? "WFH" : leave.type === "off_site" ? "Off-site" : "Izin";
         if (leave.status === "approved") {
@@ -1059,6 +1111,9 @@ export default function AttendanceLeavePage() {
             : leave.type === "off_site"
             ? "text-sky-700 bg-sky-50 border-sky-100"
             : "text-blue-700 bg-blue-50 border-blue-100";
+        } else if (isOpenedByAdmin) {
+          statusLabel = "Dibuka Admin (Isi Form)";
+          colorClass = "text-blue-750 bg-blue-50/90 border-blue-200 font-bold";
         } else {
           statusLabel = `${baseLabel} (Diproses)`;
           colorClass = "text-amber-750 bg-amber-50 border-amber-200";
@@ -1122,6 +1177,7 @@ export default function AttendanceLeavePage() {
         attendanceId: attendance ? attendance.id : null,
         leaveId: leave ? leave.id : null,
         whPermissionId: whPermission ? whPermission.id : null,
+        isOpenedByAdmin,
         isPast,
         isToday,
       };
@@ -1689,7 +1745,7 @@ export default function AttendanceLeavePage() {
                       </thead>
                       <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
                         {filteredEmployeeGrid.map((day: any) => {
-                          const showLeaveButton = day.checkIn === "-" && !day.isPast && !["annual_leave", "sick_leave", "permission", "weekend", "holiday", "wfh", "off_site"].includes(day.status);
+                          const showLeaveButton = (day.checkIn === "-" && !day.isPast && !["annual_leave", "sick_leave", "permission", "weekend", "holiday", "wfh", "off_site"].includes(day.status)) || day.isOpenedByAdmin;
                           
                           return (
                             <tr key={day.dateString} className="hover:bg-zinc-50/30">
@@ -1733,10 +1789,13 @@ export default function AttendanceLeavePage() {
                               <td className="p-3.5 text-center">
                                 {showLeaveButton ? (
                                   <button
-                                    onClick={() => handleOpenLeaveModalWithDate(day.dateString)}
-                                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-md cursor-pointer transition-all text-[11px] font-bold"
+                                    onClick={() => handleOpenLeaveModalWithDate(day.dateString, day.isOpenedByAdmin ? day.leaveId : null)}
+                                    className={day.isOpenedByAdmin
+                                      ? "bg-[#FF8200] hover:bg-orange-600 text-white shadow-xs px-2.5 py-1 rounded-md cursor-pointer transition-all text-[11px] font-bold animate-pulse"
+                                      : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-md cursor-pointer transition-all text-[11px] font-bold"
+                                    }
                                   >
-                                    Ajukan Cuti/WFH
+                                    {day.isOpenedByAdmin ? "Lengkapi Pengajuan" : "Ajukan Cuti/WFH"}
                                   </button>
                                 ) : (
                                   <span className="text-zinc-300">-</span>
@@ -2496,13 +2555,22 @@ export default function AttendanceLeavePage() {
                                     >
                                       Reset/Hapus
                                     </button>
-                                  ) : day.leaveId && isAdmin ? (
+                                  ) : day.leaveId && (isAdmin || isOwner) ? (
                                     <button
                                       onClick={() => handleDeleteLeave(day.leaveId)}
                                       disabled={deleteLeaveMutation.isPending}
                                       className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-150 px-2.5 py-1.5 rounded-md cursor-pointer transition-all text-xs font-bold disabled:bg-zinc-100 disabled:text-zinc-400 disabled:border-zinc-200"
                                     >
                                       Reset/Hapus
+                                    </button>
+                                  ) : (day.status === "absent" || (day.isPast && !day.isSunday && !day.isHoliday && day.checkIn === "-")) && (isAdmin || isOwner) ? (
+                                    <button
+                                      onClick={() => handleOpenSubmissionForEmployee(day.dateString)}
+                                      disabled={openSubmissionMutation.isPending}
+                                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2.5 py-1.5 rounded-md cursor-pointer transition-all text-xs font-bold shadow-xs hover:scale-105 active:scale-95 inline-flex items-center gap-1"
+                                      title="Buka akses pengajuan cuti/izin/WFH susulan untuk karyawan ini"
+                                    >
+                                      Buka Pengajuan
                                     </button>
                                   ) : (
                                     <span className="text-zinc-300">-</span>
@@ -2771,7 +2839,9 @@ export default function AttendanceLeavePage() {
               <div className="flex items-center justify-between border-b border-zinc-100 p-6 pb-4">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-blue-605" />
-                  <h3 className="text-sm font-bold text-zinc-950">Ajukan Cuti / Izin Karyawan</h3>
+                  <h3 className="text-sm font-bold text-zinc-950">
+                    {completingLeaveId ? "Lengkapi Pengajuan Cuti / Izin Susulan" : "Ajukan Cuti / Izin Karyawan"}
+                  </h3>
                 </div>
                 <button
                   onClick={() => setIsLeaveModalOpen(false)}
@@ -2783,6 +2853,13 @@ export default function AttendanceLeavePage() {
 
               <form onSubmit={handleSubmit(onSubmitLeave)} className="flex flex-col flex-1 overflow-hidden">
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {completingLeaveId && (
+                    <div className="bg-amber-50 text-amber-900 border border-amber-200 p-2.5 px-3.5 rounded-xl text-xs font-medium flex items-center gap-2">
+                      <Info className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>Pengajuan susulan ini dibuka atas izin Admin. Silakan pilih jenis dan lengkapi alasan.</span>
+                    </div>
+                  )}
+
                   {leaveHistory && (
                     <div className="bg-blue-50 text-blue-800 border border-blue-100 p-2.5 px-4 rounded-xl text-xs font-bold flex justify-between items-center">
                       <span>Sisa Kuota Cuti Tahunan:</span>
@@ -2818,10 +2895,11 @@ export default function AttendanceLeavePage() {
                       <input
                         {...register("start_date")}
                         type="date"
-                        min={new Date().toLocaleDateString("en-CA")}
+                        readOnly={!!completingLeaveId}
+                        min={completingLeaveId ? undefined : new Date().toLocaleDateString("en-CA")}
                         className={`w-full rounded-lg border px-3 py-2 text-xs text-zinc-950 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent ${
                           errors.start_date ? "border-red-300" : "border-zinc-200"
-                        }`}
+                        } ${completingLeaveId ? "bg-zinc-100 text-zinc-600 cursor-not-allowed font-medium" : ""}`}
                       />
                     </div>
                     <div>
@@ -2831,10 +2909,11 @@ export default function AttendanceLeavePage() {
                       <input
                         {...register("end_date")}
                         type="date"
-                        min={watch("start_date") || new Date().toLocaleDateString("en-CA")}
+                        readOnly={!!completingLeaveId}
+                        min={completingLeaveId ? undefined : (watch("start_date") || new Date().toLocaleDateString("en-CA"))}
                         className={`w-full rounded-lg border px-3 py-2 text-xs text-zinc-950 focus:outline-none focus:ring-2 focus:ring-[#FF8200] focus:border-transparent ${
                           errors.end_date ? "border-red-300" : "border-zinc-200"
-                        }`}
+                        } ${completingLeaveId ? "bg-zinc-100 text-zinc-600 cursor-not-allowed font-medium" : ""}`}
                       />
                     </div>
                   </div>

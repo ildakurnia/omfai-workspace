@@ -81,6 +81,7 @@ Route::middleware(['auth:sanctum', 'check.active'])->group(function () {
 
     // Leave & Permission Module
     Route::post('/ajukan-cuti', [LeaveApiController::class, 'store']);
+    Route::post('/ajukan-cuti/{id}/complete', [LeaveApiController::class, 'completeSubmission']);
     Route::get('/history-cuti', [LeaveApiController::class, 'history']);
     Route::post('/ajukan-cuti/{id}/cancel', [LeaveApiController::class, 'cancel']);
 
@@ -107,6 +108,7 @@ Route::middleware(['auth:sanctum', 'check.active'])->group(function () {
     // Leave Approvals & Geofence Settings (Owner & Admin)
     Route::middleware('role:Owner|Admin')->group(function () {
         Route::get('/leave-requests', [LeaveApprovalController::class, 'index']);
+        Route::post('/leave-requests/open-submission', [LeaveApprovalController::class, 'openSubmission']);
         Route::post('/leave-requests/{id}/approve', [LeaveApprovalController::class, 'approve']);
         Route::post('/leave-requests/{id}/reject', [LeaveApprovalController::class, 'reject']);
         Route::delete('/leave-requests/{id}', [LeaveApprovalController::class, 'destroy']);
