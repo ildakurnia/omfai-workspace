@@ -208,6 +208,10 @@ class DashboardService
                         $status = 'wfh';
                         $statusLabel = 'WFH';
                         $onTimeCount++;
+                    } else if ($attendance->status === 'off_site') {
+                        $status = 'off_site';
+                        $statusLabel = 'Off-site';
+                        $onTimeCount++;
                     }
                 } else if ($leave) {
                     $status = 'leave';
@@ -255,13 +259,13 @@ class DashboardService
             }
         }
 
-        // Sort: is_earliest -> present/late (by check_in_raw asc) -> leave -> absent
+        // Sort: is_earliest -> present/late/wfh/off_site (by check_in_raw asc) -> leave -> absent
         usort($todayAttendanceDetails, function ($a, $b) {
             if ($a['is_earliest'] && !$b['is_earliest']) return -1;
             if (!$a['is_earliest'] && $b['is_earliest']) return 1;
 
-            $aIsPresent = in_array($a['status'], ['present', 'late', 'wfh']);
-            $bIsPresent = in_array($b['status'], ['present', 'late', 'wfh']);
+            $aIsPresent = in_array($a['status'], ['present', 'late', 'wfh', 'off_site']);
+            $bIsPresent = in_array($b['status'], ['present', 'late', 'wfh', 'off_site']);
 
             if ($aIsPresent && !$bIsPresent) return -1;
             if (!$aIsPresent && $bIsPresent) return 1;

@@ -19,7 +19,7 @@ class LeaveApiController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'type' => 'required|in:annual_leave,sick_leave,permission,wfh',
+            'type' => 'required|in:annual_leave,sick_leave,permission,wfh,off_site',
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'required|date|after_or_equal:start_date',
             'reason' => 'required|string',
@@ -149,7 +149,14 @@ class LeaveApiController extends Controller
         // 4. Send WhatsApp Notification to Owner
         $ownerNumber = config('services.whatsapp.owner_number');
         if (!empty($ownerNumber)) {
-            $typeLabel = str_replace('_', ' ', ucfirst($type));
+            $typeLabel = match($type) {
+                'annual_leave' => 'Cuti Tahunan',
+                'sick_leave' => 'Cuti Sakit',
+                'permission' => 'Izin',
+                'wfh' => 'Work From Home (WFH)',
+                'off_site' => 'Off-site Work',
+                default => str_replace('_', ' ', ucfirst($type)),
+            };
             $formattedStart = $startDate->format('d M Y');
             $formattedEnd = $endDate->format('d M Y');
             

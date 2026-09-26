@@ -93,8 +93,8 @@ class LeaveApprovalController extends Controller
             'status' => 'approved'
         ]);
 
-        // If it's WFH, automatically generate attendance for workdays (excluding Sunday and Holidays)
-        if ($leaveRequest->type === 'wfh') {
+        // If it's WFH or Off-site Work, automatically generate attendance for workdays (excluding Sunday and Holidays)
+        if (in_array($leaveRequest->type, ['wfh', 'off_site'])) {
             $holidayDates = \App\Models\Holiday::pluck('date')
                 ->map(fn($date) => Carbon::parse($date)->format('Y-m-d'))
                 ->toArray();
@@ -114,7 +114,7 @@ class LeaveApprovalController extends Controller
                         [
                             'check_in' => '08:00:00',
                             'check_out' => '17:00:00',
-                            'status' => 'wfh'
+                            'status' => $leaveRequest->type // 'wfh' or 'off_site'
                         ]
                     );
                 }
@@ -124,7 +124,14 @@ class LeaveApprovalController extends Controller
 
         // Send WhatsApp notification to the employee (Sender name: Omfai)
         if (!empty($employee->whatsapp_number)) {
-            $typeLabel = str_replace('_', ' ', ucfirst($leaveRequest->type));
+            $typeLabel = match($leaveRequest->type) {
+                'annual_leave' => 'Cuti Tahunan',
+                'sick_leave' => 'Cuti Sakit',
+                'permission' => 'Izin',
+                'wfh' => 'Work From Home (WFH)',
+                'off_site' => 'Off-site Work',
+                default => str_replace('_', ' ', ucfirst($leaveRequest->type)),
+            };
             $formattedStart = $startDate->format('d M Y');
             $formattedEnd = $endDate->format('d M Y');
 
@@ -206,7 +213,14 @@ class LeaveApprovalController extends Controller
 
         // Send WhatsApp notification to the employee (Sender name: Omfai)
         if (!empty($employee->whatsapp_number)) {
-            $typeLabel = str_replace('_', ' ', ucfirst($leaveRequest->type));
+            $typeLabel = match($leaveRequest->type) {
+                'annual_leave' => 'Cuti Tahunan',
+                'sick_leave' => 'Cuti Sakit',
+                'permission' => 'Izin',
+                'wfh' => 'Work From Home (WFH)',
+                'off_site' => 'Off-site Work',
+                default => str_replace('_', ' ', ucfirst($leaveRequest->type)),
+            };
             $formattedStart = $startDate->format('d M Y');
             $formattedEnd = $endDate->format('d M Y');
 
@@ -267,14 +281,14 @@ class LeaveApprovalController extends Controller
             $employee->increment('leave_balance', $requestedDays);
         }
 
-        // If it is approved WFH, delete the auto-generated WFH attendances
-        if ($leaveRequest->status === 'approved' && $leaveRequest->type === 'wfh') {
+        // If it is approved WFH or Off-site Work, delete the auto-generated attendances
+        if ($leaveRequest->status === 'approved' && in_array($leaveRequest->type, ['wfh', 'off_site'])) {
             $startDate = Carbon::parse($leaveRequest->start_date)->format('Y-m-d');
             $endDate = Carbon::parse($leaveRequest->end_date)->format('Y-m-d');
 
             \App\Models\Attendance::where('employee_id', $leaveRequest->employee_id)
                 ->whereBetween('date', [$startDate, $endDate])
-                ->where('status', 'wfh')
+                ->where('status', $leaveRequest->type)
                 ->delete();
         }
 

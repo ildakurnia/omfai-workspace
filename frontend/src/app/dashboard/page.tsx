@@ -1142,7 +1142,7 @@ export default function DashboardPage() {
                         </thead>
                         <tbody className="divide-y divide-zinc-100 font-medium text-zinc-700">
                           {pendingLeaves.map((item: any) => {
-                            const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : item.type === "wfh" ? "WFH" : "Izin";
+                            const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : item.type === "wfh" ? "WFH" : item.type === "off_site" ? "Off-site Work" : "Izin";
                             return (
                               <tr key={item.id} className="hover:bg-zinc-50/30">
                                 <td className="p-3.5 pl-5 flex items-center gap-3">
@@ -1166,6 +1166,8 @@ export default function DashboardPage() {
                                       ? "bg-rose-50 text-rose-700 border-rose-100" 
                                       : item.type === "wfh"
                                       ? "bg-teal-50 text-teal-700 border-teal-100"
+                                      : item.type === "off_site"
+                                      ? "bg-sky-50 text-sky-700 border-sky-100"
                                       : "bg-amber-50 text-amber-700 border-amber-100"
                                   }`}>
                                     {typeLabel}
@@ -1222,7 +1224,7 @@ export default function DashboardPage() {
                     {/* Mobile Card List View */}
                     <div className="grid grid-cols-1 gap-4 md:hidden">
                       {pendingLeaves.map((item: any) => {
-                        const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : item.type === "wfh" ? "WFH" : "Izin";
+                        const typeLabel = item.type === "annual_leave" ? "Cuti Tahunan" : item.type === "sick_leave" ? "Sakit" : item.type === "wfh" ? "WFH" : item.type === "off_site" ? "Off-site Work" : "Izin";
                         return (
                           <div key={item.id} className="p-4 bg-zinc-50 border border-zinc-150 rounded-xl space-y-3.5">
                             <div className="flex items-center gap-3">
@@ -1248,6 +1250,8 @@ export default function DashboardPage() {
                                     ? "bg-rose-50 text-rose-700 border-rose-100" 
                                     : item.type === "wfh"
                                     ? "bg-teal-50 text-teal-700 border-teal-100"
+                                    : item.type === "off_site"
+                                    ? "bg-sky-50 text-sky-700 border-sky-100"
                                     : "bg-amber-50 text-amber-700 border-amber-100"
                                 }`}>
                                   {typeLabel}
@@ -1619,7 +1623,7 @@ export default function DashboardPage() {
                   {data.attendanceSummary.details
                     .filter((item: any) => {
                       if (activeAttendanceTab === "all") return true;
-                      if (activeAttendanceTab === "present") return item.status === "present" || item.status === "wfh";
+                      if (activeAttendanceTab === "present") return item.status === "present" || item.status === "wfh" || item.status === "off_site";
                       return item.status === activeAttendanceTab;
                     })
                     .map((item: any) => {
@@ -1671,6 +1675,8 @@ export default function DashboardPage() {
                                   ? "bg-amber-50 text-amber-700 border-amber-100"
                                   : item.status === "wfh"
                                   ? "bg-teal-50 text-teal-700 border-teal-100"
+                                  : item.status === "off_site"
+                                  ? "bg-sky-50 text-sky-700 border-sky-100"
                                   : item.status === "leave"
                                   ? "bg-blue-50 text-blue-700 border-blue-100"
                                   : item.status === "wh_permission"
@@ -2158,12 +2164,16 @@ export default function DashboardPage() {
                     ? "bg-emerald-50 text-emerald-700 border-emerald-100"
                     : todayAttendance.status === "wfh"
                     ? "bg-teal-50 text-teal-700 border-teal-100"
+                    : todayAttendance.status === "off_site"
+                    ? "bg-sky-50 text-sky-700 border-sky-100"
                     : "bg-amber-50 text-amber-700 border-amber-100"
                 }`}>
                   {todayAttendance.status === "present"
                     ? "Tepat Waktu"
                     : todayAttendance.status === "wfh"
                     ? "WFH"
+                    : todayAttendance.status === "off_site"
+                    ? "Off-site"
                     : "Terlambat"}
                 </span>
               )}
@@ -2489,7 +2499,7 @@ export default function DashboardPage() {
                 {dashboardData.attendanceSummary.details
                   .filter((item: any) => {
                     if (activeAttendanceTab === "all") return true;
-                    if (activeAttendanceTab === "present") return item.status === "present" || item.status === "wfh";
+                    if (activeAttendanceTab === "present") return item.status === "present" || item.status === "wfh" || item.status === "off_site";
                     return item.status === activeAttendanceTab;
                   })
                   .map((item: any) => {
@@ -2541,6 +2551,8 @@ export default function DashboardPage() {
                                 ? "bg-amber-50 text-amber-700 border-amber-100"
                                 : item.status === "wfh"
                                 ? "bg-teal-50 text-teal-700 border-teal-100"
+                                : item.status === "off_site"
+                                ? "bg-sky-50 text-sky-700 border-sky-100"
                                 : item.status === "leave"
                                 ? "bg-blue-50 text-blue-700 border-blue-100"
                                 : item.status === "wh_permission"
